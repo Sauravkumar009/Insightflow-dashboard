@@ -1,0 +1,15 @@
+services:
+  - type: worker
+    name: insightflow-scheduler
+    env: python
+    buildCommand: pip install -r requirements_render.txt
+    startCommand: python render_scheduler.py
+    envVars:
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        value: https://oymwlmbqzvmpwihhhirx.supabase.co
+      - key: SUPABASE_KEY
+        value: sb_publishable_SPQGizmtB8uBcBq6A0kfWw_HOvtQWuQ
+      - key: FETCH_INTERVAL
+        value: 30
