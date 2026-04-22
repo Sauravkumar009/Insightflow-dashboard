@@ -1,0 +1,4 @@
+sentiment,avg_views,avg_likes,avg_engagement,avg_like_ratio,count
+negative,3562809.531,89557.965,0.04,0.924,27410
+neutral,2090838.008,55374.715,0.042,0.917,100168
+positive,2467903.045,76740.11,0.041,0.935,33892

@@ -1,0 +1,9 @@
+data/
+outputs/delta_lake/
+outputs/bronze/
+outputs/silver/
+outputs/gold/youtube_processed.csv
+outputs/analytics/scatter_sample.csv
+__pycache__/
+*.pyc
+.streamlit/

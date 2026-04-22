@@ -1,0 +1,113 @@
+category,day,engagement_rate
+Autos & Vehicles,Friday,0.039640046847239145
+Autos & Vehicles,Monday,0.029646521384919945
+Autos & Vehicles,Saturday,0.03559776527862521
+Autos & Vehicles,Sunday,0.03909386723787994
+Autos & Vehicles,Thursday,0.04146341180358592
+Autos & Vehicles,Tuesday,0.03366458080249593
+Autos & Vehicles,Wednesday,0.04666728151780949
+Comedy,Friday,0.056263054110244334
+Comedy,Monday,0.059375967429309236
+Comedy,Saturday,0.06063224877383658
+Comedy,Sunday,0.07324476793673564
+Comedy,Thursday,0.051270676957574174
+Comedy,Tuesday,0.04871621848325896
+Comedy,Wednesday,0.05952702361969559
+Education,Friday,0.05725018112515715
+Education,Monday,0.04853082099634029
+Education,Saturday,0.052697436747992286
+Education,Sunday,0.052242043145615064
+Education,Thursday,0.054937301097558615
+Education,Tuesday,0.05115202293559924
+Education,Wednesday,0.05857829324380413
+Entertainment,Friday,0.03489612879179311
+Entertainment,Monday,0.031941309938204134
+Entertainment,Saturday,0.033974449874642744
+Entertainment,Sunday,0.038588574160646996
+Entertainment,Thursday,0.034148240634849794
+Entertainment,Tuesday,0.033801387142139754
+Entertainment,Wednesday,0.03605842323109719
+Film & Animation,Friday,0.04077882014463271
+Film & Animation,Monday,0.031232505585965124
+Film & Animation,Saturday,0.04336210044610931
+Film & Animation,Sunday,0.048632148362249925
+Film & Animation,Thursday,0.029021009589684663
+Film & Animation,Tuesday,0.02821604757106343
+Film & Animation,Wednesday,0.028149968363013273
+Gaming,Friday,0.05519293074070384
+Gaming,Monday,0.0567581061301575
+Gaming,Saturday,0.05865252882054232
+Gaming,Sunday,0.05902039617786483
+Gaming,Thursday,0.05503869334492108
+Gaming,Tuesday,0.055931300007961926
+Gaming,Wednesday,0.05029213666572756
+Howto & Style,Friday,0.058779428043801235
+Howto & Style,Monday,0.05608601025628433
+Howto & Style,Saturday,0.05729495923748449
+Howto & Style,Sunday,0.05930121952869586
+Howto & Style,Thursday,0.05751560674508029
+Howto & Style,Tuesday,0.052492209869884315
+Howto & Style,Wednesday,0.06045510290245253
+Music,Friday,0.04702177095210698
+Music,Monday,0.04661071652955115
+Music,Saturday,0.046054529872973676
+Music,Sunday,0.05580859481031399
+Music,Thursday,0.04807839997408381
+Music,Tuesday,0.053357271702333765
+Music,Wednesday,0.05023423299143995
+News & Politics,Friday,0.03206794538259336
+News & Politics,Monday,0.02517387822470113
+News & Politics,Saturday,0.030052536903659315
+News & Politics,Sunday,0.029606496401160178
+News & Politics,Thursday,0.03160112613376713
+News & Politics,Tuesday,0.027069998865007706
+News & Politics,Wednesday,0.02654705762395662
+Nonprofits,Friday,0.048766133237139714
+Nonprofits,Monday,0.03369248608784598
+Nonprofits,Saturday,0.03420222508542926
+Nonprofits,Sunday,0.02724494069066048
+Nonprofits,Thursday,0.03487358784892581
+Nonprofits,Tuesday,0.04359433146190146
+Nonprofits,Wednesday,0.08531231094049922
+Other,Friday,0.014552159372210402
+Other,Monday,0.00673098368328646
+Other,Saturday,0.00840549370889667
+Other,Sunday,0.01375700024348673
+Other,Thursday,0.0201157241948745
+Other,Tuesday,0.008633342395777774
+Other,Wednesday,0.010102832763949725
+People & Blogs,Friday,0.03879684774768954
+People & Blogs,Monday,0.03660824178638034
+People & Blogs,Saturday,0.040341936446412784
+People & Blogs,Sunday,0.04012727209026906
+People & Blogs,Thursday,0.03818935729747734
+People & Blogs,Tuesday,0.042894280343176036
+People & Blogs,Wednesday,0.042382328827947194
+Pets & Animals,Friday,0.04511523055984947
+Pets & Animals,Monday,0.039543343880808886
+Pets & Animals,Saturday,0.048073839872141595
+Pets & Animals,Sunday,0.05099948825727385
+Pets & Animals,Thursday,0.05000757488963615
+Pets & Animals,Tuesday,0.04219543355371294
+Pets & Animals,Wednesday,0.04400916373175496
+Science & Technology,Friday,0.056890429549184225
+Science & Technology,Monday,0.047896706660767625
+Science & Technology,Saturday,0.04116487382918856
+Science & Technology,Sunday,0.03828340065791033
+Science & Technology,Thursday,0.036753384692968696
+Science & Technology,Tuesday,0.048292568998051566
+Science & Technology,Wednesday,0.04678826603391316
+Sports,Friday,0.026893165870533597
+Sports,Monday,0.026846250912302253
+Sports,Saturday,0.02313948932486517
+Sports,Sunday,0.025895232429033094
+Sports,Thursday,0.0262441888871416
+Sports,Tuesday,0.02433602213612449
+Sports,Wednesday,0.02678164719918601
+Travel & Events,Friday,0.026070204234413648
+Travel & Events,Monday,0.022130063287691952
+Travel & Events,Saturday,0.03689225419512468
+Travel & Events,Sunday,0.040556464202078486
+Travel & Events,Thursday,0.04347855626024893
+Travel & Events,Tuesday,0.03279546622200535
+Travel & Events,Wednesday,0.05259910236067715

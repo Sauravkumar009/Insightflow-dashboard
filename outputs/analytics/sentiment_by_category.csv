@@ -1,0 +1,49 @@
+category,sentiment,count
+Autos & Vehicles,negative,217
+Autos & Vehicles,neutral,1063
+Autos & Vehicles,positive,274
+Comedy,negative,2434
+Comedy,neutral,8412
+Comedy,positive,2555
+Education,negative,814
+Education,neutral,2471
+Education,positive,588
+Entertainment,negative,8166
+Entertainment,neutral,25078
+Entertainment,positive,9114
+Film & Animation,negative,2326
+Film & Animation,neutral,5009
+Film & Animation,positive,1804
+Gaming,negative,1109
+Gaming,neutral,2873
+Gaming,positive,1426
+Howto & Style,negative,1292
+Howto & Style,neutral,6303
+Howto & Style,positive,2847
+Music,negative,4117
+Music,neutral,17135
+Music,positive,6651
+News & Politics,negative,2768
+News & Politics,neutral,7267
+News & Politics,positive,1588
+Nonprofits,negative,104
+Nonprofits,neutral,187
+Nonprofits,positive,44
+Other,negative,2
+Other,neutral,299
+Other,positive,18
+People & Blogs,negative,1774
+People & Blogs,neutral,11305
+People & Blogs,positive,2881
+Pets & Animals,negative,313
+Pets & Animals,neutral,1180
+Pets & Animals,positive,567
+Science & Technology,negative,558
+Science & Technology,neutral,3533
+Science & Technology,positive,785
+Sports,negative,1309
+Sports,neutral,7511
+Sports,positive,2390
+Travel & Events,negative,107
+Travel & Events,neutral,542
+Travel & Events,positive,360
