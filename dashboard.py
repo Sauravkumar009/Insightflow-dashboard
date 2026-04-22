@@ -87,11 +87,26 @@ def load_data():
             eng_hmap, views_hmap, title_eng, tag_eng, sent_dist, sent_eng,
             sent_cat, keywords, trending, prescr, scatter, like_ratio)
 
-@st.cache_data(ttl=60)
+SUPABASE_URL = "https://oymwlmbqzvmpwihhhirx.supabase.co"
+SUPABASE_KEY = "sb_publishable_SPQGizmtB8uBcBq6A0kfWw_HOvtQWuQ"
+SUPABASE_HEADERS = {
+    "apikey"       : SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+}
+
+@st.cache_data(ttl=300)
 def load_live():
-    if os.path.exists(LIVE_FILE):
-        return pd.read_csv(LIVE_FILE)
-    return pd.DataFrame()
+    try:
+        import httpx
+        url = f"{SUPABASE_URL}/rest/v1/youtube_live?select=*&order=fetch_time.desc&limit=5000"
+        with httpx.Client(timeout=30) as client:
+            response = client.get(url, headers=SUPABASE_HEADERS)
+            if response.status_code == 200:
+                data = response.json()
+                return pd.DataFrame(data)
+            return pd.DataFrame()
+    except Exception as e:
+        return pd.DataFrame()
 
 (kpis, cat_perf, country, channels, day_perf, hour_perf, corr,
  eng_hmap, views_hmap, title_eng, tag_eng, sent_dist, sent_eng,
