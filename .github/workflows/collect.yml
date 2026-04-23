@@ -2,7 +2,7 @@ name: YouTube Data Collector
 
 on:
   schedule:
-    - cron: '0 */2 * * *'  # Every 2 hours (saves GitHub Actions minutes)
+    - cron: '0 */3 * * *'  # Every 2 hours (saves GitHub Actions minutes)
   workflow_dispatch:         # Allow manual trigger too
 
 jobs:
