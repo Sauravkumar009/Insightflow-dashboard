@@ -19,17 +19,27 @@ HEADERS = {
     "Prefer"       : "return=minimal"
 }
 
+# 10 major countries
+COUNTRIES = {
+    "US": "United States",
+    "IN": "India",
+    "GB": "United Kingdom",
+    "CA": "Canada",
+    "AU": "Australia",
+    "DE": "Germany",
+    "FR": "France",
+    "JP": "Japan",
+    "KR": "South Korea",
+    "BR": "Brazil",
+}
+
+# 6 categories per country (to stay within API quota)
 CATEGORIES = {
-    "1" : "Film & Animation",
-    "2" : "Autos & Vehicles",
     "10": "Music",
-    "17": "Sports",
     "20": "Gaming",
     "22": "People & Blogs",
-    "23": "Comedy",
     "24": "Entertainment",
     "25": "News & Politics",
-    "26": "Howto & Style",
     "28": "Science & Technology",
 }
 
@@ -44,6 +54,8 @@ def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 def insert_to_supabase(rows):
+    if not rows:
+        return True
     url = f"{SUPABASE_URL}/rest/v1/youtube_live"
     with httpx.Client(timeout=30) as client:
         response = client.post(url, headers=HEADERS, json=rows)
@@ -62,58 +74,79 @@ def get_total_count():
         return content_range.split("/")[-1]
 
 def main():
-    log("=== InsightFlow GitHub Actions Collector ===")
+    log("=== InsightFlow Multi-Country Collector ===")
     log(f"Time: {datetime.now(timezone.utc).isoformat()}")
+    log(f"Countries: {len(COUNTRIES)} | Categories: {len(CATEGORIES)}")
 
     if not YOUTUBE_API_KEY:
-        log("ERROR: YOUTUBE_API_KEY not set!")
+        log("ERROR: YOUTUBE_API_KEY not set in GitHub Secrets!")
         return
 
     now      = datetime.now(timezone.utc).isoformat()
     youtube  = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
     new_rows = []
+    seen_keys = set()
 
-    for cat_id, cat_name in CATEGORIES.items():
-        try:
-            response = youtube.videos().list(
-                part="snippet,statistics",
-                chart="mostPopular",
-                regionCode="US",
-                videoCategoryId=cat_id,
-                maxResults=10
-            ).execute()
+    for country_code, country_name in COUNTRIES.items():
+        country_count = 0
+        for cat_id, cat_name in CATEGORIES.items():
+            try:
+                response = youtube.videos().list(
+                    part="snippet,statistics",
+                    chart="mostPopular",
+                    regionCode=country_code,
+                    videoCategoryId=cat_id,
+                    maxResults=5
+                ).execute()
 
-            for item in response.get("items", []):
-                snippet    = item.get("snippet", {})
-                statistics = item.get("statistics", {})
-                title      = snippet.get("title", "")
-                new_rows.append({
-                    "video_id"  : item["id"],
-                    "title"     : title,
-                    "channel"   : snippet.get("channelTitle", ""),
-                    "category"  : cat_name,
-                    "views"     : int(statistics.get("viewCount",    0)),
-                    "likes"     : int(statistics.get("likeCount",    0)),
-                    "comments"  : int(statistics.get("commentCount", 0)),
-                    "published" : snippet.get("publishedAt", "")[:10],
-                    "sentiment" : get_sentiment(title),
-                    "fetch_time": now,
-                })
-            log(f"  {cat_name}: {len(response.get('items', []))} videos fetched")
+                for item in response.get("items", []):
+                    snippet    = item.get("snippet", {})
+                    statistics = item.get("statistics", {})
+                    title      = snippet.get("title", "")
+                    video_id   = item["id"]
 
-        except Exception as e:
-            log(f"  {cat_name} error: {e}")
+                    # Avoid exact duplicate video+country combinations
+                    key = f"{video_id}_{country_code}"
+                    if key in seen_keys:
+                        continue
+                    seen_keys.add(key)
+
+                    new_rows.append({
+                        "video_id"    : video_id,
+                        "title"       : title,
+                        "channel"     : snippet.get("channelTitle", ""),
+                        "category"    : cat_name,
+                        "country"     : country_name,
+                        "country_code": country_code,
+                        "views"       : int(statistics.get("viewCount",    0)),
+                        "likes"       : int(statistics.get("likeCount",    0)),
+                        "comments"    : int(statistics.get("commentCount", 0)),
+                        "published"   : snippet.get("publishedAt", "")[:10],
+                        "sentiment"   : get_sentiment(title),
+                        "fetch_time"  : now,
+                    })
+                    country_count += 1
+
+            except Exception as e:
+                log(f"  {country_name}/{cat_name} error: {e}")
+
+        log(f"  {country_name}: {country_count} videos")
+
+    log(f"Total unique videos fetched: {len(new_rows)}")
 
     if new_rows:
-        log(f"Inserting {len(new_rows)} rows into Supabase...")
-        success = insert_to_supabase(new_rows)
-        if success:
-            total = get_total_count()
-            log(f"Success! Total rows in DB: {total}")
-        else:
-            log("Insert failed!")
+        # Insert in batches of 100
+        inserted = 0
+        for i in range(0, len(new_rows), 100):
+            batch   = new_rows[i:i+100]
+            success = insert_to_supabase(batch)
+            if success:
+                inserted += len(batch)
+
+        total = get_total_count()
+        log(f"Inserted {inserted} rows. Total in Supabase: {total}")
     else:
-        log("No rows fetched!")
+        log("No rows to insert!")
 
     log("=== Done ===")
 
