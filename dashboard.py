@@ -175,27 +175,39 @@ def load_hist():
 def load_live(dr="all"):
     try:
         if dr == "24h":
-            cut = (datetime.utcnow()-timedelta(hours=24)).isoformat()
-            base = f"{SUPABASE_URL}/rest/v1/youtube_live?select=*&fetch_time=gte.{cut}&order=fetch_time.desc"
+            cut  = (datetime.utcnow()-timedelta(hours=24)).isoformat()
+            filt = f"&fetch_time=gte.{cut}"
         elif dr == "7d":
-            cut = (datetime.utcnow()-timedelta(days=7)).isoformat()
-            base = f"{SUPABASE_URL}/rest/v1/youtube_live?select=*&fetch_time=gte.{cut}&order=fetch_time.desc"
+            cut  = (datetime.utcnow()-timedelta(days=7)).isoformat()
+            filt = f"&fetch_time=gte.{cut}"
         else:
-            base = f"{SUPABASE_URL}/rest/v1/youtube_live?select=*&order=fetch_time.desc"
+            filt = ""
 
-        # Paginate to get all records
+        base     = f"{SUPABASE_URL}/rest/v1/youtube_live?select=*{filt}&order=fetch_time.desc"
         all_data = []
-        page_size = 1000
-        offset = 0
+        offset   = 0
+        page_size= 1000
 
-        with httpx.Client(timeout=30) as c:
+        with httpx.Client(timeout=60) as c:
             while True:
-                headers = {**SUPABASE_H, "Range": f"{offset}-{offset+page_size-1}"}
+                headers = {
+                    **SUPABASE_H,
+                    "Range"      : f"{offset}-{offset+page_size-1}",
+                    "Prefer"     : "count=exact"
+                }
                 r = c.get(base, headers=headers)
-                if r.status_code in [200, 206] and r.json():
+                if r.status_code in [200, 206]:
                     batch = r.json()
+                    if not batch:
+                        break
                     all_data.extend(batch)
-                    if len(batch) < page_size:
+                    # Get total count from header
+                    content_range = r.headers.get("content-range","")
+                    if content_range:
+                        total = int(content_range.split("/")[-1])
+                        if offset + page_size >= total:
+                            break
+                    elif len(batch) < page_size:
                         break
                     offset += page_size
                 else:
