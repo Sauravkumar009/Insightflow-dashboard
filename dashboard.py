@@ -380,10 +380,14 @@ if st.session_state.page == "live":
                 color="category", text="short",
                 color_discrete_sequence=COLORS)
             fig_tc.update_traces(textposition="inside", textfont_size=9)
-            fig_tc.update_layout(**dark(320),
-                showlegend=True,
-                legend=dict(bgcolor="#161b22",bordercolor="#010102",
-               font=dict(size=9),orientation="h",yanchor="bottom",y=1.02))
+            fig_tc.update_layout(
+                plot_bgcolor="#161b22", paper_bgcolor="#161b22",
+                font=dict(color="#8b949e", size=11), height=320,
+                margin=dict(l=8,r=8,t=24,b=8), showlegend=True,
+                xaxis=dict(gridcolor="#21262d", linecolor="#30363d", tickfont=dict(size=10)),
+                yaxis=dict(gridcolor="#21262d", linecolor="#30363d", tickfont=dict(size=10)),
+                legend=dict(bgcolor="#161b22", font=dict(size=9),
+                        orientation="h", yanchor="bottom", y=1.02))
             st.plotly_chart(fig_tc, use_container_width=True)
             st.markdown('<div class="chart-caption">Top trending video in each country from latest collection run</div></div>', unsafe_allow_html=True)
 
@@ -743,7 +747,7 @@ else:
                 color_discrete_sequence=COLORS, opacity=0.6,
                 hover_data=["title"],
                 labels={"views":"Views","likes":"Likes","category":""})
-            fig_sc2.update_layout(**dark(260, legend=False))
+            fig_sc2.update_layout(**dark(260))
             st.plotly_chart(fig_sc2, use_container_width=True)
             st.markdown('<div class="chart-caption">Views-likes relationship across categories</div></div>', unsafe_allow_html=True)
 
@@ -763,7 +767,12 @@ else:
                 x="category", y="avg_like_ratio",
                 color="avg_like_ratio", color_continuous_scale="Greens",
                 labels={"category":"","avg_like_ratio":"Like Ratio"})
-            fig_lr.update_layout(**dark(260), xaxis=dict(tickangle=-30,gridcolor="#21262d"))
+            fig_lr.update_layout(
+                plot_bgcolor="#161b22", paper_bgcolor="#161b22",
+                font=dict(color="#8b949e", size=11), height=260,
+                margin=dict(l=8,r=8,t=24,b=8), showlegend=False,
+                xaxis=dict(tickangle=-30, gridcolor="#21262d", linecolor="#30363d", tickfont=dict(size=10)),
+                yaxis=dict(gridcolor="#21262d", linecolor="#30363d", tickfont=dict(size=10)))
             st.plotly_chart(fig_lr, use_container_width=True)
             st.markdown('<div class="chart-caption">Audience approval score by category</div></div>', unsafe_allow_html=True)
 
