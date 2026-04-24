@@ -422,7 +422,7 @@ if st.session_state.page == "live":
                 fig_g = px.line(gdf, x="fetch_time", y="views", color="short",
                     markers=True, color_discrete_sequence=COLORS,
                     labels={"fetch_time":"","views":"Views","short":""})
-                fig_g.update_layout(**dark(280, legend=True,
+                fig_g.update_layout(**dark(280, showlegend=True,
                     legend=dict(bgcolor="#161b22",font=dict(size=8),
                                orientation="v", x=1.01)))
                 st.plotly_chart(fig_g, use_container_width=True)
@@ -459,7 +459,7 @@ if st.session_state.page == "live":
                 hover_data=["title","country"],
                 color_discrete_sequence=COLORS, opacity=0.7,
                 labels={"views":"Views","likes":"Likes","category":""})
-            fig_sc.update_layout(**dark(300, legend=True,
+            fig_sc.update_layout(**dark(300, showlegend=True,
                 legend=dict(bgcolor="#161b22",font=dict(size=9),
                            orientation="h",yanchor="bottom",y=1.02,x=0)))
             st.plotly_chart(fig_sc, use_container_width=True)
@@ -476,7 +476,7 @@ if st.session_state.page == "live":
                 fig_ct = px.line(ctrend, x="fetch_time", y="views", color="category",
                     markers=True, color_discrete_sequence=COLORS,
                     labels={"fetch_time":"","views":"Avg Views","category":""})
-                fig_ct.update_layout(**dark(280, legend=True,
+                fig_ct.update_layout(**dark(280, showlegend=True,
                     legend=dict(bgcolor="#161b22",font=dict(size=9),
                                orientation="h",yanchor="bottom",y=1.02)))
                 st.plotly_chart(fig_ct, use_container_width=True)
@@ -492,7 +492,7 @@ if st.session_state.page == "live":
                 barmode="stack",
                 color_discrete_map={"positive":"#3fb950","neutral":"#8b949e","negative":"#f85149"},
                 labels={"count":"Videos","category":"","sentiment":""})
-            fig_scat.update_layout(**dark(280, legend=True,
+            fig_scat.update_layout(**dark(280, showlegend=True,
                 legend=dict(bgcolor="#161b22",font=dict(size=9),
                            orientation="h",yanchor="bottom",y=1.02)))
             st.plotly_chart(fig_scat, use_container_width=True)
@@ -651,7 +651,7 @@ else:
                 color="category", color_discrete_sequence=COLORS,
                 hover_data=["avg_likes","total_videos"],
                 labels={"avg_views":"Avg Views","avg_engagement":"Engagement","category":""})
-            fig_ce.update_layout(**dark(320, legend=True,
+            fig_ce.update_layout(**dark(320, showlegend=True,
                 legend=dict(bgcolor="#161b22",font=dict(size=8),
                            orientation="h",yanchor="bottom",y=1.02)))
             st.plotly_chart(fig_ce, use_container_width=True)
@@ -774,7 +774,7 @@ else:
                 barmode="stack",
                 color_discrete_map={"positive":"#3fb950","neutral":"#8b949e","negative":"#f85149"},
                 labels={"count":"Videos","category":"","sentiment":""})
-            fig_sc3.update_layout(**dark(300, legend=True,
+            fig_sc3.update_layout(**dark(300, showlegend=True,
                 legend=dict(bgcolor="#161b22",font=dict(size=9),
                            orientation="h",yanchor="bottom",y=1.02)))
             st.plotly_chart(fig_sc3, use_container_width=True)
