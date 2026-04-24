@@ -132,14 +132,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Dark plotly base ──────────────────────────────────────────
-def dark(height=350, legend=False, **kwargs):
+def dark(height=350, **kwargs):
     base = dict(
         plot_bgcolor  = "#161b22",
         paper_bgcolor = "#161b22",
         font          = dict(color="#8b949e", size=11),
         height        = height,
         margin        = dict(l=8, r=8, t=24, b=8),
-        showlegend    = legend,
+        showlegend    = False,
         xaxis         = dict(gridcolor="#21262d", linecolor="#30363d", tickfont=dict(size=10)),
         yaxis         = dict(gridcolor="#21262d", linecolor="#30363d", tickfont=dict(size=10)),
     )
@@ -281,19 +281,22 @@ if st.session_state.page == "live":
     all_countries = sorted(raw_live["country"].dropna().unique())
     all_sents     = ["positive","neutral","negative"]
 
+    
     with f2:
-        sel_cats = st.multiselect("🎬 Category", all_cats, default=list(all_cats), key="lc")
+        sel_cats = st.selectbox("🎬 Category", ["All"] + list(all_cats), key="lc")
     with f3:
-        sel_countries = st.multiselect("🌍 Country", all_countries, default=list(all_countries), key="lco")
+        sel_countries = st.selectbox("🌍 Country", ["All"] + list(all_countries), key="lco")
     with f4:
-        sel_sent = st.multiselect("😊 Sentiment", all_sents, default=all_sents, key="ls")
+        sel_sent = st.selectbox("😊 Sentiment", ["All","positive","neutral","negative"], key="ls")
 
-    # Apply filters
-    df = raw_live[
-        raw_live["category"].isin(sel_cats) &
-        raw_live["country"].isin(sel_countries) &
-        raw_live["sentiment"].isin(sel_sent)
-    ].copy()
+# Apply filters
+    df = raw_live.copy()
+    if sel_cats != "All":
+        df = df[df["category"] == sel_cats]
+    if sel_countries != "All":
+        df = df[df["country"] == sel_countries]
+    if sel_sent != "All":
+        df = df[df["sentiment"] == sel_sent]
 
     if len(df) == 0:
         st.warning("No data matches filters.")
@@ -579,20 +582,21 @@ else:
     all_countries_h= sorted(country_h["publish_country"].unique())
 
     with f1:
-        sel_cats_h = st.multiselect("🎬 Category", all_cats_h, default=list(all_cats_h), key="hc")
+        sel_cats_h = st.selectbox("🎬 Category", ["All"] + list(all_cats_h), key="hc")
     with f2:
-        sel_countries_h = st.multiselect("🌍 Country", all_countries_h, default=list(all_countries_h), key="hco")
+        sel_countries_h = st.selectbox("🌍 Country", ["All"] + list(all_countries_h), key="hco")
     with f3:
-        sel_sent_h = st.multiselect("😊 Sentiment", ["positive","neutral","negative"],
-                                    default=["positive","neutral","negative"], key="hs")
+        sel_sent_h = st.selectbox("😊 Sentiment", ["All","positive","neutral","negative"], key="hs")
 
-    cat_f   = cat_perf[cat_perf["category"].isin(sel_cats_h)]
-    country_f = country_h[country_h["publish_country"].isin(sel_countries_h)]
-    scatter_f = scatter[scatter["category"].isin(sel_cats_h) & scatter["sentiment"].isin(sel_sent_h)]
-    eng_f   = eng_hmap[eng_hmap["category"].isin(sel_cats_h)]
-    sent_cat_f = sent_cat[sent_cat["category"].isin(sel_cats_h)]
-    day_f   = day_perf
-    liker_f = liker[liker["category"].isin(sel_cats_h)]
+    cat_f     = cat_perf if sel_cats_h=="All" else cat_perf[cat_perf["category"]==sel_cats_h]
+    country_f = country_h if sel_countries_h=="All" else country_h[country_h["publish_country"]==sel_countries_h]
+    scatter_f = scatter.copy()
+    if sel_cats_h != "All": scatter_f = scatter_f[scatter_f["category"]==sel_cats_h]
+    if sel_sent_h != "All": scatter_f = scatter_f[scatter_f["sentiment"]==sel_sent_h]
+    eng_f     = eng_hmap if sel_cats_h=="All" else eng_hmap[eng_hmap["category"]==sel_cats_h]
+    sent_cat_f= sent_cat if sel_cats_h=="All" else sent_cat[sent_cat["category"]==sel_cats_h]
+    day_f     = day_perf
+    liker_f   = liker if sel_cats_h=="All" else liker[liker["category"]==sel_cats_h]
 
     pos_pct_h = round(sent_dist[sent_dist["sentiment"]=="positive"]["count"].sum() /
                       sent_dist["count"].sum() * 100, 1)
