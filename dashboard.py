@@ -184,80 +184,38 @@ def load_live(dr="all"):
             filt = ""
 
         all_data  = []
-        offset    = 0
-        page_size = 500  # smaller page size
+        page_size = 900  # stay under 1000 limit
 
         with httpx.Client(timeout=60) as c:
-            while True:
-                url = f"{SUPABASE_URL}/rest/v1/youtube_live?select=*{filt}&order=id.asc&offset={offset}&limit={page_size}"
-                r   = c.get(url, headers=SUPABASE_H)
+            # First get min and max id
+            meta_url = f"{SUPABASE_URL}/rest/v1/youtube_live?select=id{filt}&order=id.asc"
+            meta_h   = {**SUPABASE_H, "Range": "0-0", "Prefer": "count=exact"}
+            meta_r   = c.get(meta_url, headers=meta_h)
+            
+            # Get total count from content-range header
+            content_range = meta_r.headers.get("content-range", "0-0/0")
+            total = int(content_range.split("/")[-1])
+            
+            if total == 0:
+                return pd.DataFrame()
 
-                if r.status_code == 200:
-                    batch = r.json()
-                    if not batch:
-                        break
-                    all_data.extend(batch)
-                    if len(batch) < page_size:
-                        break
-                    offset += page_size
-                else:
-                    break
+            # Fetch in chunks by range header
+            offset = 0
+            while offset < total:
+                end     = min(offset + page_size - 1, total - 1)
+                headers = {**SUPABASE_H, "Range": f"{offset}-{end}"}
+                url     = f"{SUPABASE_URL}/rest/v1/youtube_live?select=*{filt}&order=id.asc"
+                r       = c.get(url, headers=headers)
 
-        if all_data:
-            df = pd.DataFrame(all_data)
-            df["fetch_time"] = pd.to_datetime(df["fetch_time"])
-            for col in ["views","likes","comments"]:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-            df["engagement"] = (df["likes"]+df["comments"])/(df["views"]+1)
-            df["like_ratio"] = df["likes"]/(df["likes"]+1)
-            if "country" not in df.columns:
-                df["country"] = "United States"
-            return df
-    except Exception as e:
-        st.error(f"Supabase error: {e}")
-    return pd.DataFrame()
-
-    try:
-        if dr == "24h":
-            cut  = (datetime.utcnow()-timedelta(hours=24)).isoformat()
-            filt = f"&fetch_time=gte.{cut}"
-        elif dr == "7d":
-            cut  = (datetime.utcnow()-timedelta(days=7)).isoformat()
-            filt = f"&fetch_time=gte.{cut}"
-        else:
-            filt = ""
-
-        base     = f"{SUPABASE_URL}/rest/v1/youtube_live?select=*{filt}&order=fetch_time.desc"
-        all_data = []
-        offset   = 0
-        page_size= 1000
-
-        with httpx.Client(timeout=60) as c:
-            while True:
-                headers = {
-                    **SUPABASE_H,
-                    "Range"      : f"{offset}-{offset+page_size-1}",
-                    "Prefer"     : "count=exact"
-                }
-                r = c.get(base, headers=headers)
                 if r.status_code in [200, 206]:
                     batch = r.json()
                     if not batch:
                         break
                     all_data.extend(batch)
-                    # Get total count from header
-                    content_range = r.headers.get("content-range","")
-                    if content_range:
-                        total = int(content_range.split("/")[-1])
-                        if offset + page_size >= total:
-                            break
-                    elif len(batch) < page_size:
-                        break
                     offset += page_size
                 else:
                     break
 
-        st.sidebar.write(f"DEBUG: Total fetched = {len(all_data)}")
         if all_data:
             df = pd.DataFrame(all_data)
             df["fetch_time"] = pd.to_datetime(df["fetch_time"])
