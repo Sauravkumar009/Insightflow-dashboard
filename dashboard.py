@@ -213,6 +213,7 @@ def load_live(dr="all"):
                 else:
                     break
 
+        st.sidebar.write(f"DEBUG: Total fetched = {len(all_data)}")
         if all_data:
             df = pd.DataFrame(all_data)
             df["fetch_time"] = pd.to_datetime(df["fetch_time"])
