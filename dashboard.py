@@ -377,9 +377,10 @@ if st.session_state.page == "live":
                 color="category", text="short",
                 color_discrete_sequence=COLORS)
             fig_tc.update_traces(textposition="inside", textfont_size=9)
-            fig_tc.update_layout(**dark(320, legend=True,
-                legend=dict(bgcolor="#161b22",bordercolor="#21262d",
-                           font=dict(size=9),orientation="h",yanchor="bottom",y=1.02)))
+            fig_tc.update_layout(**dark(320),
+                showlegend=True,
+                legend=dict(bgcolor="#161b22",bordercolor="#010102",
+               font=dict(size=9),orientation="h",yanchor="bottom",y=1.02))
             st.plotly_chart(fig_tc, use_container_width=True)
             st.markdown('<div class="chart-caption">Top trending video in each country from latest collection run</div></div>', unsafe_allow_html=True)
 
