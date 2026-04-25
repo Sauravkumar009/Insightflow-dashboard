@@ -184,40 +184,42 @@ def load_live(dr="all"):
             filt = ""
 
         all_data  = []
-        page_size = 900  # stay under 1000 limit
+        chunk     = 500
 
         with httpx.Client(timeout=60) as c:
-            # First get min and max id
-            meta_url = f"{SUPABASE_URL}/rest/v1/youtube_live?select=id{filt}&order=id.asc"
-            meta_h   = {**SUPABASE_H, "Range": "0-0", "Prefer": "count=exact"}
-            meta_r   = c.get(meta_url, headers=meta_h)
-            
-            # Get total count from content-range header
-            content_range = meta_r.headers.get("content-range", "0-0/0")
-            total = int(content_range.split("/")[-1])
-            
-            if total == 0:
+            # Get min and max id first
+            r_min = c.get(
+                f"{SUPABASE_URL}/rest/v1/youtube_live?select=id{filt}&order=id.asc&limit=1",
+                headers=SUPABASE_H)
+            r_max = c.get(
+                f"{SUPABASE_URL}/rest/v1/youtube_live?select=id{filt}&order=id.desc&limit=1",
+                headers=SUPABASE_H)
+
+            if r_min.status_code != 200 or not r_min.json():
                 return pd.DataFrame()
 
-            # Fetch in chunks by range header
-            offset = 0
-            while offset < total:
-                end     = min(offset + page_size - 1, total - 1)
-                headers = {**SUPABASE_H, "Range": f"{offset}-{end}"}
-                url     = f"{SUPABASE_URL}/rest/v1/youtube_live?select=*{filt}&order=id.asc"
-                r       = c.get(url, headers=headers)
+            min_id = r_min.json()[0]["id"]
+            max_id = r_max.json()[0]["id"]
 
-                if r.status_code in [200, 206]:
+            # Fetch in id-range chunks
+            current_id = min_id
+            while current_id <= max_id:
+                end_id = current_id + chunk - 1
+                url    = (f"{SUPABASE_URL}/rest/v1/youtube_live"
+                         f"?select=*{filt}"
+                         f"&id=gte.{current_id}"
+                         f"&id=lte.{end_id}"
+                         f"&order=id.asc")
+                r = c.get(url, headers=SUPABASE_H)
+                if r.status_code == 200:
                     batch = r.json()
-                    if not batch:
-                        break
-                    all_data.extend(batch)
-                    offset += page_size
-                else:
-                    break
+                    if batch:
+                        all_data.extend(batch)
+                current_id = end_id + 1
 
         if all_data:
             df = pd.DataFrame(all_data)
+            df = df.drop_duplicates(subset=["id"])
             df["fetch_time"] = pd.to_datetime(df["fetch_time"])
             for col in ["views","likes","comments"]:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
@@ -562,19 +564,43 @@ if st.session_state.page == "live":
         st.markdown("---")
         st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>', unsafe_allow_html=True)
 
-        best_cat     = df.groupby("category")["engagement"].mean().idxmax()
-        best_country = df.groupby("country")["engagement"].mean().idxmax()
-        best_sent    = df.groupby("sentiment")["engagement"].mean().idxmax()
-        best_views_cat = df.groupby("category")["views"].mean().idxmax()
-        corr_val     = round(df[["views","likes"]].corr().iloc[0,1], 3)
+        # Use pre-computed Silver layer columns if available
+        if "engagement_rate" in df.columns and df["engagement_rate"].sum() > 0:
+            eng_col = "engagement_rate"
+        else:
+            eng_col = "engagement"
 
-        p1,p2,p3,p4,p5 = st.columns(5)
+        if "trending_score" in df.columns and df["trending_score"].sum() > 0:
+            trend_col = "trending_score"
+        else:
+            df["trending_score"] = (
+                df["views"]/(df["views"].max()+1)*0.4 +
+                df[eng_col]/(df[eng_col].max()+1)*0.3 +
+                df["like_ratio"]/(df["like_ratio"].max()+1)*0.2
+            )
+            trend_col = "trending_score"
+
+        best_cat       = df.groupby("category")[eng_col].mean().idxmax()
+        best_country   = df.groupby("country")[eng_col].mean().idxmax()
+        best_sent      = df.groupby("sentiment")[eng_col].mean().idxmax()
+        best_views_cat = df.groupby("category")["views"].mean().idxmax()
+        best_trending  = df.nlargest(1, trend_col).iloc[0]
+        corr_val       = round(df[["views","likes"]].corr().iloc[0,1], 3)
+
+        p1,p2,p3,p4,p5,p6 = st.columns(6)
         prescr_items = [
-            (p1, "📁 Best Category",     best_cat,         "Highest live engagement rate"),
-            (p2, "🌍 Best Country",      best_country,     "Most engaged audience"),
-            (p3, "😊 Best Tone",         best_sent,        "Best performing sentiment"),
-            (p4, "👁 Peak Views",        best_views_cat,   "Highest avg views category"),
-            (p5, "📊 Views↔Likes Corr", str(corr_val),    "Strength of relationship"),
+            (p1, "📁 Best Category",      best_cat,
+            f"Avg engagement: {df.groupby('category')[eng_col].mean().max():.4f}"),
+            (p2, "🌍 Best Country",       best_country,
+            f"Avg engagement: {df.groupby('country')[eng_col].mean().max():.4f}"),
+            (p3, "😊 Best Tone",          best_sent,
+            f"Avg engagement: {df.groupby('sentiment')[eng_col].mean().max():.4f}"),
+            (p4, "👁 Peak Views",         best_views_cat,
+            f"Avg views: {int(df.groupby('category')['views'].mean().max()):,}"),
+            (p5, "📊 Views↔Likes Corr",  str(corr_val),
+            "Strength of linear relationship"),
+            (p6, "🏆 Top Trending Video", best_trending["title"][:25]+"...",
+            f"Score: {best_trending[trend_col]:.3f} | {best_trending['category']}"),
         ]
         for col, title, val, desc in prescr_items:
             col.markdown(f"""
