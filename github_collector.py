@@ -4,6 +4,7 @@ import time
 from googleapiclient.discovery import build
 from datetime import datetime, timezone
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from collections import defaultdict
 
 # ── Config from environment variables ────────────────────────
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "AIzaSyC214FxsGB1myUJFPgrnV3HnNWH46NDsWM")
