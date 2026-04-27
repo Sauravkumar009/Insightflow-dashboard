@@ -923,6 +923,44 @@ else:
                 st.pyplot(fig_wc2)
             st.markdown('<div class="chart-caption">Most frequent words in trending titles</div></div>', unsafe_allow_html=True)
 
+            # Sentiment by category
+            st.markdown('<div class="chart-wrap"><div class="chart-title">🎭 Sentiment by Category (Live)</div>', unsafe_allow_html=True)
+            scat2 = df.groupby(["category","sentiment"]).size().reset_index(name="count")
+            fig_scat2 = px.bar(scat2, x="category", y="count", color="sentiment",
+                barmode="stack",
+                color_discrete_map={"positive":"#3fb950","neutral":"#8b949e","negative":"#f85149"},
+                labels={"count":"Videos","category":"","sentiment":""})
+            fig_scat2.update_layout(**dark(280, showlegend=True,
+                legend=dict(bgcolor="#161b22",font=dict(size=9),
+                        orientation="h",yanchor="bottom",y=1.02)))
+            st.plotly_chart(fig_scat2, use_container_width=True)
+            st.markdown('<div class="chart-caption">Which categories use more emotional titles in live data?</div></div>', unsafe_allow_html=True)
+
+            # Top trending table
+            st.markdown('<div class="chart-wrap"><div class="chart-title">🏆 Top 10 Trending Videos Right Now</div>', unsafe_allow_html=True)
+            latest_time2 = df["fetch_time"].max()
+            latest_df2   = df[df["fetch_time"]==latest_time2]
+            if "trending_score" in latest_df2.columns and latest_df2["trending_score"].sum() > 0:
+                score_col = "trending_score"
+            else:
+                latest_df2 = latest_df2.copy()
+                latest_df2["trending_score"] = (
+                    latest_df2["views"]/(latest_df2["views"].max()+1)*0.5 +
+                    latest_df2["engagement"]/(latest_df2["engagement"].max()+1)*0.3 +
+                    latest_df2["like_ratio"]/(latest_df2["like_ratio"].max()+1)*0.2
+                )
+                score_col = "trending_score"
+            top10_live = latest_df2.nlargest(10, score_col)[
+                ["title","category","country","views","engagement_rate" if "engagement_rate" in latest_df2.columns else "engagement", score_col]].copy()
+            top10_live["title"]         = top10_live["title"].str[:40]+"..."
+            top10_live["views"]         = top10_live["views"].apply(lambda x: f"{int(x):,}")
+            top10_live[score_col]       = top10_live[score_col].round(3)
+            top10_live.columns          = ["Title","Category","Country","Views","Engagement","Score"]
+            st.dataframe(top10_live, use_container_width=True, hide_index=True)
+            st.markdown('<div class="chart-caption">Composite score: 40% views + 30% engagement + 20% like ratio + 10% comment rate</div></div>', unsafe_allow_html=True)
+
+            st.markdown("---")
+
         st.markdown("---")
         st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>', unsafe_allow_html=True)
 
