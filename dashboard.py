@@ -561,56 +561,132 @@ if st.session_state.page == "live":
             st.plotly_chart(fig_se, use_container_width=True)
             st.markdown('<div class="chart-caption">Do positive titles drive more engagement?</div></div>', unsafe_allow_html=True)
 
-        st.markdown("---")
-        st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>', unsafe_allow_html=True)
+            st.markdown("---")
+            st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>',
+                        unsafe_allow_html=True)
 
-        # Use pre-computed Silver layer columns if available
-        if "engagement_rate" in df.columns and df["engagement_rate"].sum() > 0:
-            eng_col = "engagement_rate"
-        else:
-            eng_col = "engagement"
+            @st.cache_data(ttl=300)
+            def load_gold():
+                try:
+                    results = {}
+                    with httpx.Client(timeout=30) as c:
+                        for table in ["gold_category","gold_country","gold_sentiment","gold_trending"]:
+                            r = c.get(
+                                f"{SUPABASE_URL}/rest/v1/{table}?select=*&order=fetch_time.desc&limit=500",
+                                headers=SUPABASE_H)
+                            results[table] = pd.DataFrame(r.json()) if r.status_code==200 and r.json() else pd.DataFrame()
+                    return results
+                except:
+                    return {}
 
-        if "trending_score" in df.columns and df["trending_score"].sum() > 0:
-            trend_col = "trending_score"
-        else:
-            df["trending_score"] = (
-                df["views"]/(df["views"].max()+1)*0.4 +
-                df[eng_col]/(df[eng_col].max()+1)*0.3 +
-                df["like_ratio"]/(df["like_ratio"].max()+1)*0.2
-            )
-            trend_col = "trending_score"
+            gold     = load_gold()
+            gold_cat = gold.get("gold_category",  pd.DataFrame())
+            gold_co  = gold.get("gold_country",   pd.DataFrame())
+            gold_sent_df = gold.get("gold_sentiment", pd.DataFrame())
+            gold_tr  = gold.get("gold_trending",  pd.DataFrame())
 
-        best_cat       = df.groupby("category")[eng_col].mean().idxmax()
-        best_country   = df.groupby("country")[eng_col].mean().idxmax()
-        best_sent      = df.groupby("sentiment")[eng_col].mean().idxmax()
-        best_views_cat = df.groupby("category")["views"].mean().idxmax()
-        best_trending  = df.nlargest(1, trend_col).iloc[0]
-        corr_val       = round(df[["views","likes"]].corr().iloc[0,1], 3)
+            # Best values from Gold layer
+            if len(gold_cat) > 0:
+                lt = gold_cat["fetch_time"].max()
+                gc = gold_cat[gold_cat["fetch_time"]==lt]
+                best_cat     = gc.sort_values("avg_engagement_rate",ascending=False).iloc[0]["category"]
+                best_cat_eng = round(gc["avg_engagement_rate"].max(), 4)
+                best_views_cat = gc.sort_values("avg_views",ascending=False).iloc[0]["category"]
+                best_views_val = int(gc["avg_views"].max())
+            else:
+                best_cat     = df.groupby("category")["engagement"].mean().idxmax()
+                best_cat_eng = round(df.groupby("category")["engagement"].mean().max(), 4)
+                best_views_cat = df.groupby("category")["views"].mean().idxmax()
+                best_views_val = int(df.groupby("category")["views"].mean().max())
 
-        p1,p2,p3,p4,p5,p6 = st.columns(6)
-        prescr_items = [
-            (p1, "📁 Best Category",      best_cat,
-            f"Avg engagement: {df.groupby('category')[eng_col].mean().max():.4f}"),
-            (p2, "🌍 Best Country",       best_country,
-            f"Avg engagement: {df.groupby('country')[eng_col].mean().max():.4f}"),
-            (p3, "😊 Best Tone",          best_sent,
-            f"Avg engagement: {df.groupby('sentiment')[eng_col].mean().max():.4f}"),
-            (p4, "👁 Peak Views",         best_views_cat,
-            f"Avg views: {int(df.groupby('category')['views'].mean().max()):,}"),
-            (p5, "📊 Views↔Likes Corr",  str(corr_val),
-            "Strength of linear relationship"),
-            (p6, "🏆 Top Trending Video", best_trending["title"][:25]+"...",
-            f"Score: {best_trending[trend_col]:.3f} | {best_trending['category']}"),
-        ]
-        for col, title, val, desc in prescr_items:
-            col.markdown(f"""
-            <div class="ins-box">
-                <div class="ins-title">{title}</div>
-                <div class="ins-value">{val}</div>
-                <div class="ins-text">{desc}</div>
-            </div>""", unsafe_allow_html=True)
+            if len(gold_co) > 0:
+                lt = gold_co["fetch_time"].max()
+                gc2 = gold_co[gold_co["fetch_time"]==lt]
+                best_country = gc2.sort_values("avg_engagement_rate",ascending=False).iloc[0]["country"]
+                best_co_eng  = round(gc2["avg_engagement_rate"].max(), 4)
+            else:
+                best_country = df.groupby("country")["engagement"].mean().idxmax()
+                best_co_eng  = round(df.groupby("country")["engagement"].mean().max(), 4)
 
-        st.markdown('</div>', unsafe_allow_html=True)
+            if len(gold_sent_df) > 0:
+                lt = gold_sent_df["fetch_time"].max()
+                gs = gold_sent_df[gold_sent_df["fetch_time"]==lt]
+                best_sent     = gs.sort_values("avg_engagement_rate",ascending=False).iloc[0]["sentiment"]
+                best_sent_eng = round(gs["avg_engagement_rate"].max(), 4)
+            else:
+                best_sent     = df.groupby("sentiment")["engagement"].mean().idxmax()
+                best_sent_eng = round(df.groupby("sentiment")["engagement"].mean().max(), 4)
+
+            if len(gold_tr) > 0:
+                lt = gold_tr["fetch_time"].max()
+                gt = gold_tr[gold_tr["fetch_time"]==lt].sort_values("trending_score",ascending=False).iloc[0]
+                top_title = gt["title"][:28]+"..."
+                top_score = round(gt["trending_score"], 3)
+                top_cat   = gt["category"]
+            else:
+                top_v     = df.nlargest(1,"trending_score" if "trending_score" in df.columns else "views").iloc[0]
+                top_title = top_v["title"][:28]+"..."
+                top_score = round(top_v.get("trending_score", 0), 3)
+                top_cat   = top_v["category"]
+
+            corr_val = round(df[["views","likes"]].corr().iloc[0,1], 3)
+
+            p1,p2,p3,p4,p5,p6 = st.columns(6)
+            for col, title, val, desc in [
+                (p1,"📁 Best Category",   best_cat,      f"Engagement: {best_cat_eng} (Gold layer)"),
+                (p2,"🌍 Best Country",    best_country,  f"Engagement: {best_co_eng} (Gold layer)"),
+                (p3,"😊 Best Tone",       best_sent,     f"Engagement: {best_sent_eng} (Gold layer)"),
+                (p4,"👁 Peak Views",      best_views_cat,f"Avg: {best_views_val:,} views (Gold layer)"),
+                (p5,"📊 Views↔Likes",    str(corr_val), "Correlation strength"),
+                (p6,"🏆 Top Trending",   top_title,     f"Score: {top_score} | {top_cat}"),
+            ]:
+                col.markdown(f"""
+                <div class="ins-box">
+                    <div class="ins-title">{title}</div>
+                    <div class="ins-value" style="font-size:16px;">{val}</div>
+                    <div class="ins-text">{desc}</div>
+                </div>""", unsafe_allow_html=True)
+
+            # Gold category chart
+            if len(gold_cat) > 0:
+                st.markdown("#### 📊 Gold Layer — Category Aggregation")
+                lt   = gold_cat["fetch_time"].max()
+                gcat = gold_cat[gold_cat["fetch_time"]==lt].sort_values("avg_trending_score",ascending=False)
+                fig_gold = go.Figure()
+                fig_gold.add_trace(go.Bar(
+                    x=gcat["category"],y=gcat["avg_views"],
+                    name="Avg Views",marker_color="#38bdf8",yaxis="y"))
+                fig_gold.add_trace(go.Scatter(
+                    x=gcat["category"],y=gcat["avg_engagement_rate"],
+                    name="Avg Engagement",yaxis="y2",
+                    line=dict(color="#f472b6",width=3),mode="lines+markers"))
+                fig_gold.update_layout(
+                    plot_bgcolor="#161b22",paper_bgcolor="#161b22",
+                    font=dict(color="#8b949e",size=10),height=320,
+                    margin=dict(l=8,r=8,t=24,b=8),
+                    xaxis=dict(gridcolor="#21262d",tickangle=-20),
+                    yaxis=dict(title="Avg Views",gridcolor="#21262d"),
+                    yaxis2=dict(title="Avg Engagement Rate",overlaying="y",side="right"),
+                    showlegend=True,
+                    legend=dict(bgcolor="#161b22",font=dict(size=9),
+                            orientation="h",yanchor="bottom",y=1.02))
+                st.plotly_chart(fig_gold, use_container_width=True)
+                st.caption("Gold layer: groupBy(category).agg(avg_views, avg_engagement_rate, count)")
+
+            # Gold trending table
+            if len(gold_tr) > 0:
+                st.markdown("#### 🏆 Gold Layer — Top 10 Trending Videos")
+                lt = gold_tr["fetch_time"].max()
+                t10 = gold_tr[gold_tr["fetch_time"]==lt].nlargest(10,"trending_score")[
+                    ["title","category","country","views","engagement_rate","trending_score"]].copy()
+                t10["title"]          = t10["title"].str[:35]+"..."
+                t10["views"]          = t10["views"].apply(lambda x: f"{int(x):,}")
+                t10["trending_score"] = t10["trending_score"].round(3)
+                t10.columns = ["Title","Category","Country","Views","Engagement","Score"]
+                st.dataframe(t10, use_container_width=True, hide_index=True)
+                st.caption("Gold layer: orderBy(trending_score desc).limit(10)")
+
+            st.markdown('</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════
 # HISTORICAL PAGE
