@@ -254,7 +254,7 @@ st.markdown(f"""
     <div class="nav-subtitle">YouTube Trending Analytics</div>
   </div>
   <div style="display:flex; align-items:center; gap:4px;">
-    <span style="font-size:11px; color:#8b949e; margin-right:8px;">VIEW:</span>
+    <span style="font-size:11px; color:#8b949e; margin-right:8px;"></span>
   </div>
 </div>
 """, unsafe_allow_html=True)
