@@ -679,19 +679,19 @@ if st.session_state.page == "live":
                 st.caption("Gold layer: groupBy(category).agg(avg_views, avg_engagement_rate, count)")
 
             # Gold trending table
-        if len(gold_tr) > 0:
-                st.markdown("#### 🏆 Gold Layer — Top 10 Trending Videos")
-                lt = gold_tr["fetch_time"].max()
-                t10 = gold_tr[gold_tr["fetch_time"]==lt].nlargest(10,"trending_score")[
-                    ["title","category","country","views","engagement_rate","trending_score"]].copy()
-                t10["title"]          = t10["title"].str[:35]+"..."
-                t10["views"]          = t10["views"].apply(lambda x: f"{int(x):,}")
-                t10["trending_score"] = t10["trending_score"].round(3)
-                t10.columns = ["Title","Category","Country","Views","Engagement","Score"]
-                st.dataframe(t10, use_container_width=True, hide_index=True)
-                st.caption("Gold layer: orderBy(trending_score desc).limit(10)")
+        # if len(gold_tr) > 0:
+        #         st.markdown("#### 🏆 Gold Layer — Top 10 Trending Videos")
+        #         lt = gold_tr["fetch_time"].max()
+        #         t10 = gold_tr[gold_tr["fetch_time"]==lt].nlargest(10,"trending_score")[
+        #             ["title","category","country","views","engagement_rate","trending_score"]].copy()
+        #         t10["title"]          = t10["title"].str[:35]+"..."
+        #         t10["views"]          = t10["views"].apply(lambda x: f"{int(x):,}")
+        #         t10["trending_score"] = t10["trending_score"].round(3)
+        #         t10.columns = ["Title","Category","Country","Views","Engagement","Score"]
+        #         st.dataframe(t10, use_container_width=True, hide_index=True)
+        #         st.caption("Gold layer: orderBy(trending_score desc).limit(10)")
 
-        st.markdown('</div>', unsafe_allow_html=True)
+        # st.markdown('</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════
 # HISTORICAL PAGE
