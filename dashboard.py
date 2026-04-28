@@ -561,12 +561,12 @@ if st.session_state.page == "live":
             st.plotly_chart(fig_se, use_container_width=True)
             st.markdown('<div class="chart-caption">Do positive titles drive more engagement?</div></div>', unsafe_allow_html=True)
 
-            st.markdown("---")
-            st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>',
+        st.markdown("---")
+        st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>',
                         unsafe_allow_html=True)
 
-            @st.cache_data(ttl=300)
-            def load_gold():
+        @st.cache_data(ttl=300)
+        def load_gold():
                 try:
                     results = {}
                     with httpx.Client(timeout=30) as c:
@@ -579,65 +579,65 @@ if st.session_state.page == "live":
                 except:
                     return {}
 
-            gold     = load_gold()
-            gold_cat = gold.get("gold_category",  pd.DataFrame())
-            gold_co  = gold.get("gold_country",   pd.DataFrame())
-            gold_sent_df = gold.get("gold_sentiment", pd.DataFrame())
-            gold_tr  = gold.get("gold_trending",  pd.DataFrame())
+        gold     = load_gold()
+        gold_cat = gold.get("gold_category",  pd.DataFrame())
+        gold_co  = gold.get("gold_country",   pd.DataFrame())
+        gold_sent_df = gold.get("gold_sentiment", pd.DataFrame())
+        gold_tr  = gold.get("gold_trending",  pd.DataFrame())
 
             # Best values from Gold layer
-            if len(gold_cat) > 0:
+        if len(gold_cat) > 0:
                 lt = gold_cat["fetch_time"].max()
                 gc = gold_cat[gold_cat["fetch_time"]==lt]
                 best_cat     = gc.sort_values("avg_engagement_rate",ascending=False).iloc[0]["category"]
                 best_cat_eng = round(gc["avg_engagement_rate"].max(), 4)
                 best_views_cat = gc.sort_values("avg_views",ascending=False).iloc[0]["category"]
                 best_views_val = int(gc["avg_views"].max())
-            else:
+        else:
                 best_cat     = df.groupby("category")["engagement"].mean().idxmax()
                 best_cat_eng = round(df.groupby("category")["engagement"].mean().max(), 4)
                 best_views_cat = df.groupby("category")["views"].mean().idxmax()
                 best_views_val = int(df.groupby("category")["views"].mean().max())
 
-            if len(gold_co) > 0:
+        if len(gold_co) > 0:
                 lt = gold_co["fetch_time"].max()
                 gc2 = gold_co[gold_co["fetch_time"]==lt]
                 best_country = gc2.sort_values("avg_engagement_rate",ascending=False).iloc[0]["country"]
                 best_co_eng  = round(gc2["avg_engagement_rate"].max(), 4)
-            else:
+        else:
                 best_country = df.groupby("country")["engagement"].mean().idxmax()
                 best_co_eng  = round(df.groupby("country")["engagement"].mean().max(), 4)
 
-            if len(gold_sent_df) > 0:
+        if len(gold_sent_df) > 0:
                 lt = gold_sent_df["fetch_time"].max()
                 gs = gold_sent_df[gold_sent_df["fetch_time"]==lt]
                 best_sent     = gs.sort_values("avg_engagement_rate",ascending=False).iloc[0]["sentiment"]
                 best_sent_eng = round(gs["avg_engagement_rate"].max(), 4)
-            else:
+        else:
                 best_sent     = df.groupby("sentiment")["engagement"].mean().idxmax()
                 best_sent_eng = round(df.groupby("sentiment")["engagement"].mean().max(), 4)
 
-            if len(gold_tr) > 0:
+        if len(gold_tr) > 0:
                 lt = gold_tr["fetch_time"].max()
                 gt = gold_tr[gold_tr["fetch_time"]==lt].sort_values("trending_score",ascending=False).iloc[0]
                 top_title = gt["title"][:28]+"..."
                 top_score = round(gt["trending_score"], 3)
                 top_cat   = gt["category"]
-            else:
+        else:
                 top_v     = df.nlargest(1,"trending_score" if "trending_score" in df.columns else "views").iloc[0]
                 top_title = top_v["title"][:28]+"..."
                 top_score = round(top_v.get("trending_score", 0), 3)
                 top_cat   = top_v["category"]
 
-            corr_val = round(df[["views","likes"]].corr().iloc[0,1], 3)
+        corr_val = round(df[["views","likes"]].corr().iloc[0,1], 3)
 
             # Row 1 of prescriptive cards
-            pr1, pr2, pr3 = st.columns(3)
+        pr1, pr2, pr3 = st.columns(3)
             # Row 2 of prescriptive cards  
-            pr4, pr5, pr6 = st.columns(3)
+        pr4, pr5, pr6 = st.columns(3)
 
-            card_cols = [pr1, pr2, pr3, pr4, pr5, pr6]
-            for col, title, val, desc in [
+        card_cols = [pr1, pr2, pr3, pr4, pr5, pr6]
+        for col, title, val, desc in [
                 (pr1,"📁 Best Category",   best_cat,      f"Avg Engagement: {best_cat_eng} · Gold Layer"),
                 (pr2,"🌍 Best Country",    best_country,  f"Avg Engagement: {best_co_eng} · Gold Layer"),
                 (pr3,"😊 Best Tone",       best_sent,     f"Avg Engagement: {best_sent_eng} · Gold Layer"),
@@ -653,7 +653,7 @@ if st.session_state.page == "live":
                 </div>""", unsafe_allow_html=True)
 
             # Gold category chart
-            if len(gold_cat) > 0:
+        if len(gold_cat) > 0:
                 st.markdown("#### 📊 Gold Layer — Category Aggregation")
                 lt   = gold_cat["fetch_time"].max()
                 gcat = gold_cat[gold_cat["fetch_time"]==lt].sort_values("avg_trending_score",ascending=False)
@@ -679,7 +679,7 @@ if st.session_state.page == "live":
                 st.caption("Gold layer: groupBy(category).agg(avg_views, avg_engagement_rate, count)")
 
             # Gold trending table
-            if len(gold_tr) > 0:
+        if len(gold_tr) > 0:
                 st.markdown("#### 🏆 Gold Layer — Top 10 Trending Videos")
                 lt = gold_tr["fetch_time"].max()
                 t10 = gold_tr[gold_tr["fetch_time"]==lt].nlargest(10,"trending_score")[
@@ -691,7 +691,7 @@ if st.session_state.page == "live":
                 st.dataframe(t10, use_container_width=True, hide_index=True)
                 st.caption("Gold layer: orderBy(trending_score desc).limit(10)")
 
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════
 # HISTORICAL PAGE
@@ -964,38 +964,38 @@ else:
             st.dataframe(top10_live, use_container_width=True, hide_index=True)
             st.markdown('<div class="chart-caption">Composite score: 40% views + 30% engagement + 20% like ratio + 10% comment rate</div></div>', unsafe_allow_html=True)
 
-        st.markdown("---")
+            st.markdown("---")
 
-        st.markdown("---")
-        st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>', unsafe_allow_html=True)
+            st.markdown("---")
+            st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>', unsafe_allow_html=True)
 
-            # row = prescr.iloc[0]
-            # p1,p2,p3,p4,p5 = st.columns(5)
-            # items = [
-            #     (p1, "📁 Best Category",    row["rec_category"].split("'")[1] if "'" in row["rec_category"] else row["rec_category"][:20],    row["rec_category"]),
-            #     (p2, "📅 Best Day",         row["rec_day"].split()[2],         row["rec_day"]),
-            #     (p3, "⏰ Best Hour",        row["rec_hour"].split()[2],         row["rec_hour"]),
-            #     (p4, "📝 Title Length",     row["rec_title_length"].split()[1], row["rec_title_length"]),
-            #     (p5, "🏷️ Tags",            row["rec_tags"].split()[1],         row["rec_tags"]),
-            # ]
-            # for col, title, val, desc in items:
-            #     col.markdown(f"""
-            #     <div class="ins-box">
-            #         <div class="ins-title">{title}</div>
-            #         <div class="ins-value">{val}</div>
-            #         <div class="ins-text">{desc}</div>
-            #     </div>""", unsafe_allow_html=True)
+            row = prescr.iloc[0]
+            p1,p2,p3,p4,p5 = st.columns(5)
+            items = [
+                (p1, "📁 Best Category",    row["rec_category"].split("'")[1] if "'" in row["rec_category"] else row["rec_category"][:20],    row["rec_category"]),
+                (p2, "📅 Best Day",         row["rec_day"].split()[2],         row["rec_day"]),
+                (p3, "⏰ Best Hour",        row["rec_hour"].split()[2],         row["rec_hour"]),
+                (p4, "📝 Title Length",     row["rec_title_length"].split()[1], row["rec_title_length"]),
+                (p5, "🏷️ Tags",            row["rec_tags"].split()[1],         row["rec_tags"]),
+            ]
+            for col, title, val, desc in items:
+                col.markdown(f"""
+                <div class="ins-box">
+                    <div class="ins-title">{title}</div>
+                    <div class="ins-value">{val}</div>
+                    <div class="ins-text">{desc}</div>
+                </div>""", unsafe_allow_html=True)
 
-            # st.markdown("---")
-            # st.markdown('<div class="sec-title">Top Trending Channels</div>', unsafe_allow_html=True)
-            # fig_ch = px.bar(channels.head(15).sort_values("total_views"),
-            #     x="total_views", y="channel_title", orientation="h",
-            #     color="avg_engagement", color_continuous_scale="Teal",
-            #     labels={"total_views":"Total Views","channel_title":"","avg_engagement":"Avg Engagement"})
-            # fig_ch.update_layout(**dark(400))
-            # st.plotly_chart(fig_ch, use_container_width=True)
+            st.markdown("---")
+            st.markdown('<div class="sec-title">Top Trending Channels</div>', unsafe_allow_html=True)
+            fig_ch = px.bar(channels.head(15).sort_values("total_views"),
+                x="total_views", y="channel_title", orientation="h",
+                color="avg_engagement", color_continuous_scale="Teal",
+                labels={"total_views":"Total Views","channel_title":"","avg_engagement":"Avg Engagement"})
+            fig_ch.update_layout(**dark(400))
+            st.plotly_chart(fig_ch, use_container_width=True)
 
-            # st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
 # # ── Footer ────────────────────────────────────────────────────
 # st.markdown("""
