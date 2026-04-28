@@ -966,36 +966,36 @@ else:
 
             st.markdown("---")
 
-        st.markdown("---")
-        st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>', unsafe_allow_html=True)
+            st.markdown("---")
+            st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>', unsafe_allow_html=True)
 
-        row = prescr.iloc[0]
-        p1,p2,p3,p4,p5 = st.columns(5)
-        items = [
-            (p1, "📁 Best Category",    row["rec_category"].split("'")[1] if "'" in row["rec_category"] else row["rec_category"][:20],    row["rec_category"]),
-            (p2, "📅 Best Day",         row["rec_day"].split()[2],         row["rec_day"]),
-            (p3, "⏰ Best Hour",        row["rec_hour"].split()[2],         row["rec_hour"]),
-            (p4, "📝 Title Length",     row["rec_title_length"].split()[1], row["rec_title_length"]),
-            (p5, "🏷️ Tags",            row["rec_tags"].split()[1],         row["rec_tags"]),
-        ]
-        for col, title, val, desc in items:
-            col.markdown(f"""
-            <div class="ins-box">
-                <div class="ins-title">{title}</div>
-                <div class="ins-value">{val}</div>
-                <div class="ins-text">{desc}</div>
-            </div>""", unsafe_allow_html=True)
+            row = prescr.iloc[0]
+            p1,p2,p3,p4,p5 = st.columns(5)
+            items = [
+                (p1, "📁 Best Category",    row["rec_category"].split("'")[1] if "'" in row["rec_category"] else row["rec_category"][:20],    row["rec_category"]),
+                (p2, "📅 Best Day",         row["rec_day"].split()[2],         row["rec_day"]),
+                (p3, "⏰ Best Hour",        row["rec_hour"].split()[2],         row["rec_hour"]),
+                (p4, "📝 Title Length",     row["rec_title_length"].split()[1], row["rec_title_length"]),
+                (p5, "🏷️ Tags",            row["rec_tags"].split()[1],         row["rec_tags"]),
+            ]
+            for col, title, val, desc in items:
+                col.markdown(f"""
+                <div class="ins-box">
+                    <div class="ins-title">{title}</div>
+                    <div class="ins-value">{val}</div>
+                    <div class="ins-text">{desc}</div>
+                </div>""", unsafe_allow_html=True)
 
-        st.markdown("---")
-        st.markdown('<div class="sec-title">Top Trending Channels</div>', unsafe_allow_html=True)
-        fig_ch = px.bar(channels.head(15).sort_values("total_views"),
-            x="total_views", y="channel_title", orientation="h",
-            color="avg_engagement", color_continuous_scale="Teal",
-            labels={"total_views":"Total Views","channel_title":"","avg_engagement":"Avg Engagement"})
-        fig_ch.update_layout(**dark(400))
-        st.plotly_chart(fig_ch, use_container_width=True)
+            st.markdown("---")
+            st.markdown('<div class="sec-title">Top Trending Channels</div>', unsafe_allow_html=True)
+            fig_ch = px.bar(channels.head(15).sort_values("total_views"),
+                x="total_views", y="channel_title", orientation="h",
+                color="avg_engagement", color_continuous_scale="Teal",
+                labels={"total_views":"Total Views","channel_title":"","avg_engagement":"Avg Engagement"})
+            fig_ch.update_layout(**dark(400))
+            st.plotly_chart(fig_ch, use_container_width=True)
 
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
 # # ── Footer ────────────────────────────────────────────────────
 # st.markdown("""
