@@ -653,30 +653,30 @@ if st.session_state.page == "live":
                 </div>""", unsafe_allow_html=True)
 
             # Gold category chart
-        if len(gold_cat) > 0:
-                st.markdown("#### 📊 Gold Layer — Category Aggregation")
-                lt   = gold_cat["fetch_time"].max()
-                gcat = gold_cat[gold_cat["fetch_time"]==lt].sort_values("avg_trending_score",ascending=False)
-                fig_gold = go.Figure()
-                fig_gold.add_trace(go.Bar(
-                    x=gcat["category"],y=gcat["avg_views"],
-                    name="Avg Views",marker_color="#38bdf8",yaxis="y"))
-                fig_gold.add_trace(go.Scatter(
-                    x=gcat["category"],y=gcat["avg_engagement_rate"],
-                    name="Avg Engagement",yaxis="y2",
-                    line=dict(color="#f472b6",width=3),mode="lines+markers"))
-                fig_gold.update_layout(
-                    plot_bgcolor="#161b22",paper_bgcolor="#161b22",
-                    font=dict(color="#8b949e",size=10),height=320,
-                    margin=dict(l=8,r=8,t=24,b=8),
-                    xaxis=dict(gridcolor="#21262d",tickangle=-20),
-                    yaxis=dict(title="Avg Views",gridcolor="#21262d"),
-                    yaxis2=dict(title="Avg Engagement Rate",overlaying="y",side="right"),
-                    showlegend=True,
-                    legend=dict(bgcolor="#161b22",font=dict(size=9),
-                            orientation="h",yanchor="bottom",y=1.02))
-                st.plotly_chart(fig_gold, use_container_width=True)
-                st.caption("Gold layer: groupBy(category).agg(avg_views, avg_engagement_rate, count)")
+        # if len(gold_cat) > 0:
+        #         st.markdown("#### 📊 Gold Layer — Category Aggregation")
+        #         lt   = gold_cat["fetch_time"].max()
+        #         gcat = gold_cat[gold_cat["fetch_time"]==lt].sort_values("avg_trending_score",ascending=False)
+        #         fig_gold = go.Figure()
+        #         fig_gold.add_trace(go.Bar(
+        #             x=gcat["category"],y=gcat["avg_views"],
+        #             name="Avg Views",marker_color="#38bdf8",yaxis="y"))
+        #         fig_gold.add_trace(go.Scatter(
+        #             x=gcat["category"],y=gcat["avg_engagement_rate"],
+        #             name="Avg Engagement",yaxis="y2",
+        #             line=dict(color="#f472b6",width=3),mode="lines+markers"))
+        #         fig_gold.update_layout(
+        #             plot_bgcolor="#161b22",paper_bgcolor="#161b22",
+        #             font=dict(color="#8b949e",size=10),height=320,
+        #             margin=dict(l=8,r=8,t=24,b=8),
+        #             xaxis=dict(gridcolor="#21262d",tickangle=-20),
+        #             yaxis=dict(title="Avg Views",gridcolor="#21262d"),
+        #             yaxis2=dict(title="Avg Engagement Rate",overlaying="y",side="right"),
+        #             showlegend=True,
+        #             legend=dict(bgcolor="#161b22",font=dict(size=9),
+        #                     orientation="h",yanchor="bottom",y=1.02))
+        #         st.plotly_chart(fig_gold, use_container_width=True)
+                # st.caption("Gold layer: groupBy(category).agg(avg_views, avg_engagement_rate, count)")
 
             # Gold trending table
         # if len(gold_tr) > 0:
