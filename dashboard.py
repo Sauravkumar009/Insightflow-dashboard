@@ -964,9 +964,9 @@ else:
             st.dataframe(top10_live, use_container_width=True, hide_index=True)
             st.markdown('<div class="chart-caption">Composite score: 40% views + 30% engagement + 20% like ratio + 10% comment rate</div></div>', unsafe_allow_html=True)
 
-           
-
             st.markdown("---")
+
+           
             st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>', unsafe_allow_html=True)
 
             row = prescr.iloc[0]
