@@ -631,19 +631,24 @@ if st.session_state.page == "live":
 
             corr_val = round(df[["views","likes"]].corr().iloc[0,1], 3)
 
-            p1,p2,p3,p4,p5,p6 = st.columns(6)
+            # Row 1 of prescriptive cards
+            pr1, pr2, pr3 = st.columns(3)
+            # Row 2 of prescriptive cards  
+            pr4, pr5, pr6 = st.columns(3)
+
+            card_cols = [pr1, pr2, pr3, pr4, pr5, pr6]
             for col, title, val, desc in [
-                (p1,"📁 Best Category",   best_cat,      f"Engagement: {best_cat_eng} (Gold layer)"),
-                (p2,"🌍 Best Country",    best_country,  f"Engagement: {best_co_eng} (Gold layer)"),
-                (p3,"😊 Best Tone",       best_sent,     f"Engagement: {best_sent_eng} (Gold layer)"),
-                (p4,"👁 Peak Views",      best_views_cat,f"Avg: {best_views_val:,} views (Gold layer)"),
-                (p5,"📊 Views↔Likes",    str(corr_val), "Correlation strength"),
-                (p6,"🏆 Top Trending",   top_title,     f"Score: {top_score} | {top_cat}"),
+                (pr1,"📁 Best Category",   best_cat,      f"Avg Engagement: {best_cat_eng} · Gold Layer"),
+                (pr2,"🌍 Best Country",    best_country,  f"Avg Engagement: {best_co_eng} · Gold Layer"),
+                (pr3,"😊 Best Tone",       best_sent,     f"Avg Engagement: {best_sent_eng} · Gold Layer"),
+                (pr4,"👁 Peak Views",      best_views_cat,f"Avg Views: {best_views_val:,} · Gold Layer"),
+                (pr5,"📊 Views↔Likes",    str(corr_val), "Correlation Strength · Silver Layer"),
+                (pr6,"🏆 Top Trending",   top_title,     f"Score: {top_score} · {top_cat}"),
             ]:
                 col.markdown(f"""
-                <div class="ins-box">
+                <div class="ins-box" style="margin-bottom:12px;">
                     <div class="ins-title">{title}</div>
-                    <div class="ins-value" style="font-size:16px;">{val}</div>
+                    <div class="ins-value" style="font-size:20px; margin:8px 0;">{val}</div>
                     <div class="ins-text">{desc}</div>
                 </div>""", unsafe_allow_html=True)
 
