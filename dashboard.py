@@ -562,7 +562,7 @@ if st.session_state.page == "live":
       <div class="kpi-card">
         <div class="kpi-value">{len(df):,}</div>
         <div class="kpi-label">Total Videos</div>
-        <div style="font-size:12px;color:#adbac7;margin-top:6px">Batch (CSV) + Stream (Kafka)</div>
+        <div style="font-size:12px;color:#adbac7;margin-top:6px"></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value">{int(df['views'].sum()/1e9 if df['views'].sum()>1e9 else df['views'].sum()/1e6):.1f}{"B" if df['views'].sum()>1e9 else "M"}</div>
