@@ -6,12 +6,13 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use("Agg")
-import httpx
+from pymongo import MongoClient
 import os
 from datetime import datetime, timedelta
 from collections import Counter
 import re
 import numpy as np
+from datetime import datetime, timedelta, timezone
 
 st.set_page_config(
     page_title="InsightFlow — YouTube Analytics",
@@ -20,10 +21,15 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ── Supabase ──────────────────────────────────────────────────
-SUPABASE_URL = "https://oymwlmbqzvmpwihhhirx.supabase.co"
-SUPABASE_KEY = "sb_publishable_SPQGizmtB8uBcBq6A0kfWw_HOvtQWuQ"
-SUPABASE_H   = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+# ── MongoDB ───────────────────────────────────────────────────
+MONGODB_URI = os.environ.get(
+    "MONGODB_URI",
+    "mongodb+srv://2025aim1009_db_user:lOuGs2tZMyhwVHK6@cluster0.ov7v1g2.mongodb.net/insightflow?retryWrites=true&w=majority&appName=Cluster0"
+)
+
+def get_mongo_db():
+    client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=10000)
+    return client["insightflow"]
 
 GOLD_DIR      = os.path.join("outputs", "gold")
 ANALYTICS_DIR = os.path.join("outputs", "analytics")
@@ -47,7 +53,6 @@ COUNTRY_COORDS = {
 # ── CSS — Hardcoded Dark Mode ─────────────────────────────────
 st.markdown("""
 <style>
-  /* ── Force dark theme on all Streamlit containers ── */
   .stApp,
   .stApp > div,
   section[data-testid="stSidebar"],
@@ -60,7 +65,6 @@ st.markdown("""
     background: #0d1117 !important;
     color: #e6edf3 !important;
   }
-  /* Force Streamlit's own theme system to dark */
   :root {
     --primary-color: #58a6ff !important;
     --background-color: #0d1117 !important;
@@ -72,7 +76,6 @@ st.markdown("""
   .block-container { padding: 0 !important; max-width: 100% !important; }
   body { font-family: 'Segoe UI', sans-serif; }
 
-  /* ── Navbar ── */
   .navbar {
     display: flex; align-items: center; justify-content: space-between;
     background: #161b22; border-bottom: 1px solid #21262d;
@@ -86,17 +89,6 @@ st.markdown("""
     color: #58a6ff; letter-spacing: 0.5px;
   }
 
-  /* ── Page buttons ── */
-  .page-btn {
-    display: inline-block; padding: 6px 20px; border-radius: 6px;
-    font-size: 13px; font-weight: 600; cursor: pointer;
-    border: 1px solid #30363d; margin-left: 8px;
-    text-align: center; transition: all 0.2s;
-  }
-  .page-active   { background: #1f6feb; color: #fff; border-color: #1f6feb; }
-  .page-inactive { background: transparent; color: #8b949e; }
-
-  /* ── KPI cards ── */
   .kpi-row  { display: flex; gap: 14px; padding: 20px 24px 0 24px; flex-wrap: wrap; }
   .kpi-card {
     flex: 1; min-width: 140px; background: #161b22;
@@ -110,7 +102,6 @@ st.markdown("""
   .kpi-negative { color: #f85149; }
   .kpi-neutral  { color: #d29922; }
 
-  /* ── Section title ── */
   .sec-title {
     font-size: 13px; font-weight: 800; color: #adbac7 !important;
     text-transform: uppercase; letter-spacing: 1px;
@@ -118,7 +109,6 @@ st.markdown("""
     border-left: 3px solid #58a6ff; padding-left: 12px;
   }
 
-  /* ── Chart containers ── */
   .chart-wrap {
     background: #161b22; border: 1px solid #30363d;
     border-radius: 12px; padding: 16px; margin: 0;
@@ -129,7 +119,6 @@ st.markdown("""
   }
   .chart-caption { font-size: 11px; color: #adbac7 !important; margin-top: 6px; font-style: italic; }
 
-  /* ── Insight box ── */
   .ins-box {
     background: #161b22; border: 1px solid #30363d;
     border-radius: 12px; padding: 18px 20px; min-height: 140px;
@@ -138,10 +127,8 @@ st.markdown("""
   .ins-value { font-size: 30px; font-weight: 800; color: #3fb950; line-height: 1.1; }
   .ins-text  { font-size: 13px; color: #adbac7; margin-top: 8px; line-height: 1.6; }
 
-  /* ── Content padding ── */
   .content { padding: 0 24px 24px 24px; }
 
-  /* ── Inline chart header: title left, selectbox right in same row ── */
   .chart-header-row {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 4px; gap: 8px;
@@ -150,12 +137,8 @@ st.markdown("""
     font-size: 13px; font-weight: 800; color: #e6edf3 !important;
     text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; flex: 1;
   }
-  /* ── Chart header selectbox: compact, right-aligned ── */
-  /* Target selectboxes that are label_visibility=collapsed (no label rendered) */
-  div[data-testid="stHorizontalBlock"] .stSelectbox {
-    margin-bottom: 0 !important;
-    padding-bottom: 0 !important;
-  }
+
+  div[data-testid="stHorizontalBlock"] .stSelectbox { margin-bottom: 0 !important; padding-bottom: 0 !important; }
   div[data-testid="stHorizontalBlock"] .stSelectbox label { display: none !important; }
   div[data-testid="stHorizontalBlock"] .stSelectbox [data-baseweb="select"] > div {
     min-height: 42px !important; height: auto !important;
@@ -164,162 +147,86 @@ st.markdown("""
     color: #e6edf3 !important; border-radius: 6px !important;
     display: flex !important; align-items: center !important;
   }
-  /* Collapse vertical gap between the header columns row and chart-wrap below */
-  div[data-testid="stHorizontalBlock"] + div[data-testid="stVerticalBlock"] > div:first-child {
-    margin-top: -8px !important;
-  }
-  /* Remove top padding from the column block itself */
   div[data-testid="column"] { padding-top: 0 !important; }
-
-  /* ── Streamlit widget overrides ── */
   div[data-testid="metric-container"] { display: none; }
 
-  /* Closed selectbox box */
   .stSelectbox > div > div,
   .stSelectbox [data-baseweb="select"] > div {
-    background: #21262d !important;
-    border-color: #30363d !important;
-    color: #e6edf3 !important;
-    font-size: 13px !important;
-    min-height: 42px !important;
-    height: auto !important;
-    display: flex !important;
-    align-items: center !important;
+    background: #21262d !important; border-color: #30363d !important;
+    color: #e6edf3 !important; font-size: 13px !important;
+    min-height: 42px !important; height: auto !important;
+    display: flex !important; align-items: center !important;
   }
-  /* The selected value text */
   .stSelectbox [data-baseweb="select"] span,
   .stSelectbox [data-baseweb="select"] div,
   .stSelectbox [data-baseweb="select"] input,
-  .stSelectbox [data-baseweb="select"] [data-testid="stMarkdownContainer"],
   .stSelectbox [class*="ValueContainer"] *,
   .stSelectbox [class*="singleValue"],
   .stSelectbox [class*="placeholder"] {
-    color: #e6edf3 !important;
-    background: transparent !important;
-    font-size: 13px !important;
-    line-height: 1.4 !important;
-    overflow: visible !important;
-    white-space: nowrap !important;
+    color: #e6edf3 !important; background: transparent !important;
+    font-size: 13px !important; line-height: 1.4 !important;
+    overflow: visible !important; white-space: nowrap !important;
   }
 
-  /* ── Open dropdown portal — target every possible node ── */
-  [data-baseweb="popover"] *,
-  [data-baseweb="menu"] *,
-  ul[role="listbox"],
-  ul[role="listbox"] *,
-  li[role="option"],
-  li[role="option"] * {
-    color: #e6edf3 !important;
-  }
-  /* The outer popover/menu container */
-  [data-baseweb="popover"],
-  [data-baseweb="menu"] {
-    background: #1c2128 !important;
-    border: 1px solid #30363d !important;
+  [data-baseweb="popover"] *, [data-baseweb="menu"] *,
+  ul[role="listbox"], ul[role="listbox"] *,
+  li[role="option"], li[role="option"] * { color: #e6edf3 !important; }
+  [data-baseweb="popover"], [data-baseweb="menu"] {
+    background: #1c2128 !important; border: 1px solid #30363d !important;
     box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important;
   }
-  /* Each option row */
-  [data-baseweb="option"],
-  li[role="option"] {
-    background: #1c2128 !important;
-    color: #e6edf3 !important;
-    font-size: 13px !important;
-    padding: 10px 14px !important;
-    cursor: pointer !important;
+  [data-baseweb="option"], li[role="option"] {
+    background: #1c2128 !important; color: #e6edf3 !important;
+    font-size: 13px !important; padding: 10px 14px !important; cursor: pointer !important;
   }
-  /* Hover + selected */
-  [data-baseweb="option"]:hover,
-  li[role="option"]:hover,
-  [data-baseweb="option"][aria-selected="true"],
-  li[role="option"][aria-selected="true"] {
-    background: #21262d !important;
-    color: #58a6ff !important;
+  [data-baseweb="option"]:hover, li[role="option"]:hover,
+  [data-baseweb="option"][aria-selected="true"], li[role="option"][aria-selected="true"] {
+    background: #21262d !important; color: #58a6ff !important;
   }
-  /* Selected value text in closed box */
-  [data-baseweb="select"] span,
-  [data-baseweb="select"] div,
-  [data-baseweb="select"] input {
-    color: #e6edf3 !important;
-    background: transparent !important;
+  [data-baseweb="select"] span, [data-baseweb="select"] div, [data-baseweb="select"] input {
+    color: #e6edf3 !important; background: transparent !important;
   }
-  /* Dropdown arrow */
   [data-baseweb="select"] svg { fill: #8b949e !important; }
 
   .stMultiSelect > div > div { background: #161b22 !important; border-color: #30363d !important; }
   .stMultiSelect span { background: #1f6feb !important; }
 
-  /* Labels */
   label, .stSelectbox label, p { color: #8b949e !important; font-size: 11px !important; }
-
-  /* Headings */
   h1, h2, h3, h4 { color: #e6edf3 !important; }
-
-  /* Tabs — hide default tab bar (using buttons instead) */
   .stTabs [data-baseweb="tab-list"] { display: none; }
 
-  /* Buttons */
   .stButton > button {
-    background: #21262d !important;
-    color: #e6edf3 !important;
-    border: 1px solid #30363d !important;
-    border-radius: 6px !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
+    background: #21262d !important; color: #e6edf3 !important;
+    border: 1px solid #30363d !important; border-radius: 6px !important;
+    font-size: 12px !important; font-weight: 600 !important;
   }
-  .stButton > button[kind="primary"],
-  .stButton > button[data-testid*="primary"] {
-    background: #1f6feb !important;
-    color: #fff !important;
-    border-color: #1f6feb !important;
-  }
+  .stButton > button[kind="primary"] { background: #1f6feb !important; color: #fff !important; border-color: #1f6feb !important; }
   .stButton > button:hover { border-color: #58a6ff !important; color: #58a6ff !important; }
 
-  /* Horizontal rule */
   hr { border-color: #21262d !important; }
-
-  /* DataFrame / table */
   .stDataFrame { background: #161b22 !important; }
   [data-testid="stTable"] td, [data-testid="stTable"] th { color: #e6edf3 !important; }
-
-  /* Info / warning boxes */
   .stAlert { background: #161b22 !important; border-color: #30363d !important; color: #e6edf3 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Extra global style injected into body to catch Streamlit's portal dropdowns ──
 st.markdown("""
 <style>
-  /* Streamlit renders open dropdowns as a portal appended to <body>.
-     These rules live at body level so they win over Streamlit's defaults. */
-  body [data-baseweb="popover"],
-  body [data-baseweb="menu"],
-  body ul[role="listbox"] {
-    background-color: #1c2128 !important;
-    border: 1px solid #30363d !important;
-    border-radius: 8px !important;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.7) !important;
+  body [data-baseweb="popover"], body [data-baseweb="menu"], body ul[role="listbox"] {
+    background-color: #1c2128 !important; border: 1px solid #30363d !important;
+    border-radius: 8px !important; box-shadow: 0 8px 24px rgba(0,0,0,0.7) !important;
   }
-  body [data-baseweb="option"],
-  body li[role="option"] {
-    background-color: #1c2128 !important;
-    color: #e6edf3 !important;
-    font-size: 13px !important;
-    padding: 10px 14px !important;
+  body [data-baseweb="option"], body li[role="option"] {
+    background-color: #1c2128 !important; color: #e6edf3 !important;
+    font-size: 13px !important; padding: 10px 14px !important;
   }
-  body [data-baseweb="option"]:hover,
-  body li[role="option"]:hover {
-    background-color: #21262d !important;
-    color: #58a6ff !important;
+  body [data-baseweb="option"]:hover, body li[role="option"]:hover {
+    background-color: #21262d !important; color: #58a6ff !important;
   }
-  body [data-baseweb="option"][aria-selected="true"],
-  body li[role="option"][aria-selected="true"] {
-    background-color: #21262d !important;
-    color: #58a6ff !important;
+  body [data-baseweb="option"][aria-selected="true"], body li[role="option"][aria-selected="true"] {
+    background-color: #21262d !important; color: #58a6ff !important;
   }
-  /* All text inside the open list */
-  body [data-baseweb="popover"] *,
-  body [data-baseweb="menu"] *,
-  body ul[role="listbox"] * {
+  body [data-baseweb="popover"] *, body [data-baseweb="menu"] *, body ul[role="listbox"] * {
     color: #e6edf3 !important;
   }
 </style>
@@ -334,23 +241,17 @@ def dark(height=350, **kwargs):
         height        = height,
         margin        = dict(l=8, r=8, t=32, b=8),
         showlegend    = False,
-        xaxis         = dict(
-            gridcolor="#21262d", linecolor="#444d56",
-            tickfont=dict(size=11, color="#adbac7"),
-            title_font=dict(color="#c9d1d9"),
-        ),
-        yaxis         = dict(
-            gridcolor="#21262d", linecolor="#444d56",
-            tickfont=dict(size=11, color="#adbac7"),
-            title_font=dict(color="#c9d1d9"),
-        ),
+        xaxis         = dict(gridcolor="#21262d", linecolor="#444d56",
+                             tickfont=dict(size=11, color="#adbac7"),
+                             title_font=dict(color="#c9d1d9")),
+        yaxis         = dict(gridcolor="#21262d", linecolor="#444d56",
+                             tickfont=dict(size=11, color="#adbac7"),
+                             title_font=dict(color="#c9d1d9")),
     )
     base.update(kwargs)
     return base
 
-
-
-# ── Load historical ───────────────────────────────────────────
+# ── Load historical CSV data ──────────────────────────────────
 @st.cache_data(ttl=3600)
 def load_hist():
     kpis      = pd.read_csv(os.path.join(GOLD_DIR,      "kpis.csv"))
@@ -375,66 +276,53 @@ def load_hist():
             eng_hmap, title_eng, tag_eng, sent_dist, sent_eng, sent_cat,
             keywords, trending, prescr, scatter, liker)
 
+# ── Load live data from MongoDB ───────────────────────────────
 @st.cache_data(ttl=300)
 def load_live(dr="all"):
     try:
+        db         = get_mongo_db()
+        collection = db["youtube_live"]
+
+        query = {}
         if dr == "24h":
-            cut  = (datetime.utcnow()-timedelta(hours=24)).isoformat()
-            filt = f"&fetch_time=gte.{cut}"
+            from datetime import timezone
+            cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            query["fetch_time"] = {"$gte": cutoff}
         elif dr == "7d":
-            cut  = (datetime.utcnow()-timedelta(days=7)).isoformat()
-            filt = f"&fetch_time=gte.{cut}"
-        else:
-            filt = ""
+            from datetime import timezone
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+            query["fetch_time"] = {"$gte": cutoff}
 
-        all_data  = []
-        chunk     = 500
+        docs = list(collection.find(query, {"_id": 0}))
+        if not docs:
+            return pd.DataFrame()
 
-        with httpx.Client(timeout=60) as c:
-            # Get min and max id first
-            r_min = c.get(
-                f"{SUPABASE_URL}/rest/v1/youtube_live?select=id{filt}&order=id.asc&limit=1",
-                headers=SUPABASE_H)
-            r_max = c.get(
-                f"{SUPABASE_URL}/rest/v1/youtube_live?select=id{filt}&order=id.desc&limit=1",
-                headers=SUPABASE_H)
-
-            if r_min.status_code != 200 or not r_min.json():
-                return pd.DataFrame()
-
-            min_id = r_min.json()[0]["id"]
-            max_id = r_max.json()[0]["id"]
-
-            # Fetch in id-range chunks
-            current_id = min_id
-            while current_id <= max_id:
-                end_id = current_id + chunk - 1
-                url    = (f"{SUPABASE_URL}/rest/v1/youtube_live"
-                         f"?select=*{filt}"
-                         f"&id=gte.{current_id}"
-                         f"&id=lte.{end_id}"
-                         f"&order=id.asc")
-                r = c.get(url, headers=SUPABASE_H)
-                if r.status_code == 200:
-                    batch = r.json()
-                    if batch:
-                        all_data.extend(batch)
-                current_id = end_id + 1
-
-        if all_data:
-            df = pd.DataFrame(all_data)
-            df = df.drop_duplicates(subset=["id"])
-            df["fetch_time"] = pd.to_datetime(df["fetch_time"])
-            for col in ["views","likes","comments"]:
+        df = pd.DataFrame(docs)
+        df["fetch_time"] = pd.to_datetime(df["fetch_time"])
+        for col in ["views", "likes", "comments"]:
+            if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-            df["engagement"] = (df["likes"]+df["comments"])/(df["views"]+1)
-            df["like_ratio"] = df["likes"]/(df["likes"]+1)
-            if "country" not in df.columns:
-                df["country"] = "United States"
-            return df
+        df["engagement"] = (df["likes"] + df["comments"]) / (df["views"] + 1)
+        df["like_ratio"] = df["likes"] / (df["likes"] + 1)
+        if "country" not in df.columns:
+            df["country"] = "United States"
+        return df
+
     except Exception as e:
-        st.error(f"Supabase error: {e}")
-    return pd.DataFrame()
+        st.error(f"MongoDB error: {e}")
+        return pd.DataFrame()
+
+# ── Load Gold layer tables from MongoDB ───────────────────────
+def load_gold_tables():
+    gold_results = {}
+    try:
+        db = get_mongo_db()
+        for table in ["gold_category", "gold_country", "gold_sentiment", "gold_trending"]:
+            docs = list(db[table].find({}, {"_id": 0}))
+            gold_results[table] = pd.DataFrame(docs) if docs else pd.DataFrame()
+    except Exception as e:
+        st.warning(f"Could not load gold tables: {e}")
+    return gold_results
 
 def get_keywords(titles, n=30):
     sw = {"the","a","an","in","on","of","to","and","is","for","with","at","by",
@@ -447,7 +335,6 @@ def get_keywords(titles, n=30):
     return dict(Counter(words).most_common(n))
 
 def compute_forecast(df_live, horizon_h=24):
-    """Linear regression forecast per category using numpy polyfit."""
     results = []
     runs = sorted(df_live["fetch_time"].unique())
     if len(runs) < 2:
@@ -477,7 +364,7 @@ def compute_forecast(df_live, horizon_h=24):
                         "forecast_avg": round(forecast), "growth_pct": round(growth, 1)})
     return pd.DataFrame(results).sort_values("growth_pct", ascending=False)
 
-# ── Session state for page ────────────────────────────────────
+# ── Session state ─────────────────────────────────────────────
 if "page" not in st.session_state:
     st.session_state.page = "live"
 
@@ -492,7 +379,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Page switcher buttons
 col_nav1, col_nav2, col_nav3 = st.columns([6, 1, 1])
 with col_nav2:
     if st.button("🔴 Live Data",
@@ -514,13 +400,12 @@ st.markdown("---")
 # ══════════════════════════════════════════════════════════════
 if st.session_state.page == "live":
 
-    # ── Top filter row ────────────────────────────────────────
     f1,f2,f3,f4 = st.columns([1,1,1,1])
     with f1:
         date_range = st.selectbox("📅 Date Range",
             ["Last 24 Hours","Last 7 Days","All Time"], key="live_dr")
         dr_key = {"Last 24 Hours":"24h","Last 7 Days":"7d","All Time":"all"}[date_range]
-    
+
     raw_live = load_live(dr_key)
 
     if len(raw_live) == 0:
@@ -529,9 +414,7 @@ if st.session_state.page == "live":
 
     all_cats      = sorted(raw_live["category"].dropna().unique())
     all_countries = sorted(raw_live["country"].dropna().unique())
-    all_sents     = ["positive","neutral","negative"]
 
-    
     with f2:
         sel_cats = st.selectbox("🎬 Category", ["All"] + list(all_cats), key="lc")
     with f3:
@@ -539,7 +422,6 @@ if st.session_state.page == "live":
     with f4:
         sel_sent = st.selectbox("😊 Sentiment", ["All","positive","neutral","negative"], key="ls")
 
-# Apply filters
     df = raw_live.copy()
     if sel_cats != "All":
         df = df[df["category"] == sel_cats]
@@ -556,13 +438,11 @@ if st.session_state.page == "live":
     latest_fetch = raw_live["fetch_time"].max()
     pos_pct      = round(len(df[df["sentiment"]=="positive"])/len(df)*100,1)
 
-    # ── KPI Row ───────────────────────────────────────────────
     st.markdown(f"""
     <div class="kpi-row">
       <div class="kpi-card">
         <div class="kpi-value">{len(df):,}</div>
         <div class="kpi-label">Total Videos</div>
-        <div style="font-size:12px;color:#adbac7;margin-top:6px"></div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value">{int(df['views'].sum()/1e9 if df['views'].sum()>1e9 else df['views'].sum()/1e6):.1f}{"B" if df['views'].sum()>1e9 else "M"}</div>
@@ -572,22 +452,18 @@ if st.session_state.page == "live":
       <div class="kpi-card">
         <div class="kpi-value">{int(df['likes'].sum()/1e6):.1f}M</div>
         <div class="kpi-label">Total Likes</div>
-        <div style="font-size:12px;color:#adbac7;margin-top:6px">Across all categories</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value">{int(df['comments'].sum()/1e6):.1f}M</div>
         <div class="kpi-label">Total Comments</div>
-        <div style="font-size:12px;color:#adbac7;margin-top:6px">Community engagement</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value kpi-positive">{round(df['likes'].sum()/max(df['views'].sum(),1)*100,2)}%</div>
         <div class="kpi-label">Avg Like Rate</div>
-        <div style="font-size:12px;color:#3fb950;margin-top:6px">↑ Likes per 100 views</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value">{round(df['comments'].sum()/max(df['views'].sum(),1)*100,3)}%</div>
         <div class="kpi-label">Avg Comment Rate</div>
-        <div style="font-size:12px;color:#adbac7;margin-top:6px">↑ Comments per 100 views</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-value kpi-positive">{pos_pct}%</div>
@@ -605,7 +481,6 @@ if st.session_state.page == "live":
     with st.container():
         st.markdown('<div class="content">', unsafe_allow_html=True)
 
-        # Row 1: World map + Top video per country
         r1c1, r1c2 = st.columns([3, 2])
 
         with r1c1:
@@ -625,8 +500,7 @@ if st.session_state.page == "live":
                 paper_bgcolor="#161b22", geo=dict(
                     bgcolor="#161b22", landcolor="#21262d",
                     oceancolor="#0d1117", showocean=True,
-                    coastlinecolor="#444d56", showframe=False,
-                    showcoastlines=True),
+                    coastlinecolor="#444d56", showframe=False, showcoastlines=True),
                 height=320, margin=dict(l=0,r=0,t=0,b=0),
                 coloraxis_colorbar=dict(tickfont=dict(color="#adbac7", size=10)))
             st.plotly_chart(fig_map, use_container_width=True)
@@ -655,7 +529,6 @@ if st.session_state.page == "live":
             st.plotly_chart(fig_tc, use_container_width=True)
             st.markdown('<div class="chart-caption">Top trending video in each country from latest collection run</div></div>', unsafe_allow_html=True)
 
-        # Row 2: Category Performance + View Growth (2 equal columns)
         r2c1, r2c2 = st.columns(2)
 
         with r2c1:
@@ -704,7 +577,6 @@ if st.session_state.page == "live":
                 st.info("Need 2+ runs for growth chart")
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        # ── Top 10 Videos + Top 10 Channels with toggles ─────
         st.markdown("---")
         r_top_c1, r_top_c2 = st.columns(2)
 
@@ -720,24 +592,15 @@ if st.session_state.page == "live":
                 "Videos":   ("video_id", "count", "Video Count"),
             }
             vid_col, vid_agg_fn, vid_label = vid_col_map[vid_metric]
-            # Group across ALL runs so we always get 10 results
             if vid_metric == "Videos":
-                top10_v = df.groupby("title").agg(
-                    value    = ("video_id", "count"),
-                    category = ("category", "first"),
-                ).reset_index()
+                top10_v = df.groupby("title").agg(value=("video_id","count"), category=("category","first")).reset_index()
             else:
-                top10_v = df.groupby("title").agg(
-                    value    = (vid_col, "sum"),
-                    category = ("category", "first"),
-                ).reset_index()
+                top10_v = df.groupby("title").agg(value=(vid_col,"sum"), category=("category","first")).reset_index()
             top10_v = top10_v.nlargest(10, "value").sort_values("value", ascending=True)
             top10_v["short"] = top10_v["title"].str[:35] + "..."
-            fig_top10_v = px.bar(
-                top10_v, x="value", y="short", orientation="h",
+            fig_top10_v = px.bar(top10_v, x="value", y="short", orientation="h",
                 color="category", color_discrete_sequence=COLORS,
-                labels={"value": vid_label, "short": "", "category": ""}
-            )
+                labels={"value": vid_label, "short": "", "category": ""})
             fig_top10_v.update_layout(**dark(340, showlegend=True,
                 legend=dict(bgcolor="#161b22", font=dict(color="#c9d1d9", size=11),
                            orientation="h", yanchor="bottom", y=1.02)))
@@ -761,11 +624,9 @@ if st.session_state.page == "live":
             else:
                 ch_agg = df.groupby("channel").agg(value=(ch_col,"sum")).reset_index()
             top10_ch = ch_agg.nlargest(10, "value").sort_values("value", ascending=True)
-            fig_top10_ch = px.bar(
-                top10_ch, x="value", y="channel", orientation="h",
+            fig_top10_ch = px.bar(top10_ch, x="value", y="channel", orientation="h",
                 color="value", color_continuous_scale="Blues",
-                labels={"value": ch_label, "channel": ""}
-            )
+                labels={"value": ch_label, "channel": ""})
             fig_top10_ch.update_layout(**dark(340))
             st.plotly_chart(fig_top10_ch, use_container_width=True)
             st.markdown(f'<div class="chart-caption">Top 10 channels by {ch_metric.lower()} — aggregated across all runs</div></div>', unsafe_allow_html=True)
@@ -773,7 +634,6 @@ if st.session_state.page == "live":
         st.markdown("---")
         st.markdown('<div class="sec-title">Diagnostic Analytics — Why is it happening?</div>', unsafe_allow_html=True)
 
-        # Row 3: Correlation + Heatmap
         r3c1, r3c2 = st.columns(2)
 
         with r3c1:
@@ -781,8 +641,7 @@ if st.session_state.page == "live":
             if "country" in df.columns and df["country"].nunique() > 1:
                 hmap = df.groupby(["category","country"])["engagement"].mean().reset_index()
                 hpiv = hmap.pivot(index="category", columns="country", values="engagement").fillna(0)
-                fig_hm = px.imshow(hpiv, color_continuous_scale="Blues",
-                    text_auto=".3f", aspect="auto")
+                fig_hm = px.imshow(hpiv, color_continuous_scale="Blues", text_auto=".3f", aspect="auto")
                 fig_hm.update_layout(**dark(300))
                 fig_hm.update_traces(textfont_size=11)
                 st.plotly_chart(fig_hm, use_container_width=True)
@@ -804,7 +663,6 @@ if st.session_state.page == "live":
             st.plotly_chart(fig_sc, use_container_width=True)
             st.markdown('<div class="chart-caption">Does higher viewership always mean more likes?</div></div>', unsafe_allow_html=True)
 
-        # Row 4: Category trend + Sentiment by category
         r4c1, r4c2 = st.columns(2)
 
         with r4c1:
@@ -840,7 +698,6 @@ if st.session_state.page == "live":
         st.markdown("---")
         st.markdown('<div class="sec-title">Predictive Analytics — What will happen?</div>', unsafe_allow_html=True)
 
-        # ── Forecast using linear regression on run history ───
         fcast_df = compute_forecast(raw_live, horizon_h=24)
 
         if len(fcast_df) > 0:
@@ -852,11 +709,10 @@ if st.session_state.page == "live":
             slowest_pct  = worst_growth["growth_pct"]
             total_fcast  = int(fcast_df["forecast_avg"].sum())
             n_growing    = len(fcast_df[fcast_df["growth_pct"] > 0])
-
-            color_fast = "#3fb950" if fastest_pct >= 0 else "#f85149"
-            color_slow = "#f85149" if slowest_pct < 0 else "#d29922"
-            arrow_fast = "↑" if fastest_pct >= 0 else "↓"
-            arrow_slow = "↓" if slowest_pct < 0 else "→"
+            color_fast   = "#3fb950" if fastest_pct >= 0 else "#f85149"
+            color_slow   = "#f85149" if slowest_pct < 0 else "#d29922"
+            arrow_fast   = "↑" if fastest_pct >= 0 else "↓"
+            arrow_slow   = "↓" if slowest_pct < 0 else "→"
 
             st.markdown(f"""
             <div class="kpi-row" style="padding-top:8px; padding-bottom:12px;">
@@ -886,150 +742,85 @@ if st.session_state.page == "live":
         r5c1, r5c2 = st.columns(2)
 
         with r5c1:
-            # Chart 1: 24h Forecast overlay bar
             st.markdown('<div class="chart-wrap"><div class="chart-title">📈 24h View Forecast — Current vs Predicted</div>', unsafe_allow_html=True)
             if len(fcast_df) > 0:
                 fig_fc = go.Figure()
-                fig_fc.add_trace(go.Bar(
-                    x=fcast_df["current_avg"], y=fcast_df["category"],
-                    orientation="h", name="Current Avg Views",
-                    marker_color="#38bdf8", opacity=0.55,
-                ))
-                fig_fc.add_trace(go.Bar(
-                    x=fcast_df["forecast_avg"], y=fcast_df["category"],
-                    orientation="h", name="Forecast (24h)",
-                    marker_color="#818cf8", opacity=0.9,
-                ))
+                fig_fc.add_trace(go.Bar(x=fcast_df["current_avg"], y=fcast_df["category"],
+                    orientation="h", name="Current Avg Views", marker_color="#38bdf8", opacity=0.55))
+                fig_fc.add_trace(go.Bar(x=fcast_df["forecast_avg"], y=fcast_df["category"],
+                    orientation="h", name="Forecast (24h)", marker_color="#818cf8", opacity=0.9))
                 fig_fc.update_layout(
                     plot_bgcolor="#161b22", paper_bgcolor="#161b22",
                     font=dict(color="#c9d1d9", size=11), height=320,
-                    margin=dict(l=8, r=8, t=24, b=8), barmode="overlay",
-                    xaxis=dict(title="Avg Views", gridcolor="#21262d", linecolor="#444d56", tickfont=dict(size=11, color="#adbac7"), title_font=dict(color="#c9d1d9")),
+                    margin=dict(l=8,r=8,t=24,b=8), barmode="overlay",
+                    xaxis=dict(title="Avg Views", gridcolor="#21262d", linecolor="#444d56",
+                               tickfont=dict(size=11, color="#adbac7"), title_font=dict(color="#c9d1d9")),
                     yaxis=dict(gridcolor="#21262d", linecolor="#444d56"),
                     legend=dict(bgcolor="#161b22", font=dict(color="#c9d1d9", size=10),
                                 orientation="h", yanchor="bottom", y=1.02),
-                    showlegend=True,
-                )
+                    showlegend=True)
                 st.plotly_chart(fig_fc, use_container_width=True)
             else:
                 st.info("Need 2+ collection runs for forecast")
-            st.markdown('<div class="chart-caption">Blue = current avg views · Purple = predicted avg in next 24h via linear regression on run history</div></div>', unsafe_allow_html=True)
+            st.markdown('<div class="chart-caption">Blue = current avg views · Purple = predicted avg in next 24h via linear regression</div></div>', unsafe_allow_html=True)
 
         with r5c2:
-            # Chart 2: Forecast Growth % bar (green/red)
             st.markdown('<div class="chart-wrap"><div class="chart-title">📊 Forecast Growth % — Next 24h vs Now</div>', unsafe_allow_html=True)
             if len(fcast_df) > 0:
                 fcast_sorted = fcast_df.sort_values("growth_pct")
-                bar_colors   = ["#3fb950" if g >= 0 else "#f85149"
-                                for g in fcast_sorted["growth_pct"]]
+                bar_colors   = ["#3fb950" if g >= 0 else "#f85149" for g in fcast_sorted["growth_pct"]]
                 fig_gr = go.Figure(go.Bar(
                     x=fcast_sorted["growth_pct"], y=fcast_sorted["category"],
                     orientation="h", marker_color=bar_colors,
                     text=[f"{g:+.1f}%" for g in fcast_sorted["growth_pct"]],
-                    textposition="outside", textfont=dict(size=10, color="#e6edf3"),
-                ))
+                    textposition="outside", textfont=dict(size=10, color="#e6edf3")))
                 fig_gr.add_vline(x=0, line_color="#30363d", line_width=1)
                 fig_gr.update_layout(
                     plot_bgcolor="#161b22", paper_bgcolor="#161b22",
                     font=dict(color="#c9d1d9", size=11), height=320,
-                    margin=dict(l=8, r=70, t=24, b=8), showlegend=False,
-                    xaxis=dict(title="Growth %", gridcolor="#21262d", title_font=dict(color="#c9d1d9"),
-                               linecolor="#444d56", zeroline=False),
-                    yaxis=dict(gridcolor="#21262d", linecolor="#444d56"),
-                )
+                    margin=dict(l=8,r=70,t=24,b=8), showlegend=False,
+                    xaxis=dict(title="Growth %", gridcolor="#21262d",
+                               title_font=dict(color="#c9d1d9"), linecolor="#444d56", zeroline=False),
+                    yaxis=dict(gridcolor="#21262d", linecolor="#444d56"))
                 st.plotly_chart(fig_gr, use_container_width=True)
             else:
                 st.info("Need 2+ collection runs for forecast")
             st.markdown('<div class="chart-caption">Green = predicted growth · Red = predicted decline · Based on linear trend across collection runs</div></div>', unsafe_allow_html=True)
 
-        r5c3, r5c4 = st.columns(2)
-
-        with r5c3:
-            # Chart 3: Sentiment vs Engagement (kept, moved here)
-            st.markdown('<div class="chart-wrap"><div class="chart-title">📊 Sentiment vs Engagement</div>', unsafe_allow_html=True)
-            se = df.groupby("sentiment").agg(
-                avg_views=("views","mean"), avg_eng=("engagement","mean")).reset_index()
-            fig_se = go.Figure()
-            fig_se.add_trace(go.Bar(x=se["sentiment"], y=se["avg_views"],
-                name="Avg Views", marker_color="#38bdf8", yaxis="y"))
-            fig_se.add_trace(go.Scatter(x=se["sentiment"], y=se["avg_eng"],
-                name="Engagement", yaxis="y2",
-                line=dict(color="#f472b6", width=3), mode="lines+markers"))
-            fig_se.update_layout(
-                plot_bgcolor="#161b22", paper_bgcolor="#161b22",
-                font=dict(color="#c9d1d9", size=11), height=280,
-                margin=dict(l=8, r=8, t=24, b=8),
-                xaxis=dict(gridcolor="#21262d"),
-                yaxis=dict(title="Avg Views", gridcolor="#21262d"),
-                yaxis2=dict(title="Engagement", overlaying="y", side="right"),
-                legend=dict(bgcolor="#161b22", font=dict(color="#c9d1d9", size=10)))
-            st.plotly_chart(fig_se, use_container_width=True)
-            st.markdown('<div class="chart-caption">Do positive titles drive more engagement? Dual-axis view.</div></div>', unsafe_allow_html=True)
-
-        with r5c4:
-            # Chart 4: Keyword cloud
-            st.markdown('<div class="chart-wrap"><div class="chart-title">☁️ Live Trending Keywords</div>', unsafe_allow_html=True)
-            kw = get_keywords(df["title"])
-            if kw:
-                wc = WordCloud(width=600, height=260, background_color="#161b22",
-                               colormap="Blues", max_words=40).generate_from_frequencies(kw)
-                fig_wc, ax = plt.subplots(figsize=(6, 2.6))
-                fig_wc.patch.set_facecolor("#161b22")
-                ax.imshow(wc, interpolation="bilinear")
-                ax.axis("off")
-                st.pyplot(fig_wc)
-            st.markdown('<div class="chart-caption">Most frequent words in live trending titles — signals emerging topics</div></div>', unsafe_allow_html=True)
-
         st.markdown("---")
-        st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>',
-                    unsafe_allow_html=True)
-        st.markdown('<p style="font-size:13px;color:#adbac7;margin:0 0 12px 24px;">⚠️ Global recommendations based on all data — not affected by filters above. These are creator action items.</p>', unsafe_allow_html=True)
+        st.markdown('<div class="sec-title">Prescriptive Analytics — What should be done?</div>', unsafe_allow_html=True)
+        st.markdown('<p style="font-size:13px;color:#adbac7;margin:0 0 12px 24px;">⚠️ Global recommendations based on all data — not affected by filters above.</p>', unsafe_allow_html=True)
 
-        # ── Load Gold layer tables from Supabase ─────────────
-        try:
-            gold_results = {}
-            with httpx.Client(timeout=30) as _c:
-                for _t in ["gold_category","gold_country","gold_sentiment","gold_trending"]:
-                    _r = _c.get(
-                        f"{SUPABASE_URL}/rest/v1/{_t}?select=*&order=fetch_time.desc&limit=500",
-                        headers=SUPABASE_H)
-                    gold_results[_t] = pd.DataFrame(_r.json()) if _r.status_code==200 and _r.json() else pd.DataFrame()
-        except Exception:
-            gold_results = {}
-
+        # ── Load Gold layer tables from MongoDB ───────────────
+        gold_results = load_gold_tables()
         gold_cat     = gold_results.get("gold_category",  pd.DataFrame())
         gold_co      = gold_results.get("gold_country",   pd.DataFrame())
         gold_sent_df = gold_results.get("gold_sentiment", pd.DataFrame())
         gold_tr      = gold_results.get("gold_trending",  pd.DataFrame())
 
-        # ── Derive all recommendation values ─────────────────
-        # Best & worst category by engagement
+        # ── Derive recommendation values ──────────────────────
         if len(gold_cat) > 0:
             lt  = gold_cat["fetch_time"].max()
             gc  = gold_cat[gold_cat["fetch_time"] == lt].sort_values("avg_engagement_rate", ascending=False)
-            best_cat        = gc.iloc[0]["category"]
-            best_cat_eng    = round(gc.iloc[0]["avg_engagement_rate"], 4)
-            worst_cat       = gc.iloc[-1]["category"]
-            worst_cat_eng   = round(gc.iloc[-1]["avg_engagement_rate"], 4)
-            best_views_cat  = gc.sort_values("avg_views", ascending=False).iloc[0]["category"]
-            best_views_val  = int(gc["avg_views"].max())
-            # Fastest growing from forecast
-            fc = compute_forecast(raw_live, horizon_h=24)
-            fastest_cat     = fc.iloc[0]["category"] if len(fc) > 0 else best_cat
-            fastest_pct     = fc.iloc[0]["growth_pct"] if len(fc) > 0 else 0.0
+            best_cat       = gc.iloc[0]["category"]
+            best_cat_eng   = round(gc.iloc[0]["avg_engagement_rate"], 4)
+            worst_cat      = gc.iloc[-1]["category"]
+            worst_cat_eng  = round(gc.iloc[-1]["avg_engagement_rate"], 4)
+            best_views_val = int(gc["avg_views"].max())
+            fc             = compute_forecast(raw_live, horizon_h=24)
+            fastest_cat    = fc.iloc[0]["category"] if len(fc) > 0 else best_cat
+            fastest_pct    = fc.iloc[0]["growth_pct"] if len(fc) > 0 else 0.0
         else:
-            cat_eng         = df.groupby("category")["engagement"].mean()
-            best_cat        = cat_eng.idxmax()
-            best_cat_eng    = round(cat_eng.max(), 4)
-            worst_cat       = cat_eng.idxmin()
-            worst_cat_eng   = round(cat_eng.min(), 4)
-            best_views_cat  = df.groupby("category")["views"].mean().idxmax()
-            best_views_val  = int(df.groupby("category")["views"].mean().max())
-            fc              = compute_forecast(raw_live, horizon_h=24)
-            fastest_cat     = fc.iloc[0]["category"] if len(fc) > 0 else best_cat
-            fastest_pct     = fc.iloc[0]["growth_pct"] if len(fc) > 0 else 0.0
+            cat_eng        = df.groupby("category")["engagement"].mean()
+            best_cat       = cat_eng.idxmax()
+            best_cat_eng   = round(cat_eng.max(), 4)
+            worst_cat      = cat_eng.idxmin()
+            worst_cat_eng  = round(cat_eng.min(), 4)
+            best_views_val = int(df.groupby("category")["views"].mean().max())
+            fc             = compute_forecast(raw_live, horizon_h=24)
+            fastest_cat    = fc.iloc[0]["category"] if len(fc) > 0 else best_cat
+            fastest_pct    = fc.iloc[0]["growth_pct"] if len(fc) > 0 else 0.0
 
-        # Best country
         if len(gold_co) > 0:
             lt           = gold_co["fetch_time"].max()
             gc2          = gold_co[gold_co["fetch_time"] == lt]
@@ -1039,7 +830,6 @@ if st.session_state.page == "live":
             best_country = df.groupby("country")["engagement"].mean().idxmax()
             best_co_eng  = round(df.groupby("country")["engagement"].mean().max(), 4)
 
-        # Best sentiment
         if len(gold_sent_df) > 0:
             lt            = gold_sent_df["fetch_time"].max()
             gs            = gold_sent_df[gold_sent_df["fetch_time"] == lt]
@@ -1049,7 +839,6 @@ if st.session_state.page == "live":
             best_sent     = df.groupby("sentiment")["engagement"].mean().idxmax()
             best_sent_eng = round(df.groupby("sentiment")["engagement"].mean().max(), 4)
 
-        # Top trending video
         if len(gold_tr) > 0:
             lt        = gold_tr["fetch_time"].max()
             gt        = gold_tr[gold_tr["fetch_time"] == lt].sort_values("trending_score", ascending=False).iloc[0]
@@ -1062,11 +851,10 @@ if st.session_state.page == "live":
             top_score = 0.0
             top_cat   = top_v["category"]
 
-        corr_val     = round(df[["views","likes"]].corr().iloc[0,1], 3)
+        corr_val      = round(df[["views","likes"]].corr().iloc[0,1], 3)
         fastest_arrow = "↑" if fastest_pct >= 0 else "↓"
         fastest_color = "#3fb950" if fastest_pct >= 0 else "#f85149"
 
-        # ── Row 1: Action cards (like friend's "Publish NOW" style) ──
         st.markdown("#### 🎯 Model-Driven Action Cards")
         ac1, ac2, ac3 = st.columns(3)
 
@@ -1076,7 +864,7 @@ if st.session_state.page == "live":
             <div style="font-size:13px;color:#e6edf3;margin:8px 0;font-weight:600;">Best engagement category right now</div>
             <div class="ins-text">Avg engagement rate: <b>{best_cat_eng}</b><br>
             Avg views: <b>{best_views_val:,}</b><br>
-            Source: Gold Layer · Live aggregation</div>
+            Source: Gold Layer · MongoDB</div>
         </div>""", unsafe_allow_html=True)
 
         ac2.markdown(f"""
@@ -1097,7 +885,6 @@ if st.session_state.page == "live":
             Redirect budget to <b>{best_cat}</b>.</div>
         </div>""", unsafe_allow_html=True)
 
-        # ── Row 2: Strategy cards ─────────────────────────────
         ac4, ac5, ac6 = st.columns(3)
 
         ac4.markdown(f"""
@@ -1123,11 +910,10 @@ if st.session_state.page == "live":
             <div class="ins-title" style="color:#fbbf24;">🏆 Stable Bet: {top_cat}</div>
             <div style="font-size:13px;color:#e6edf3;margin:8px 0;font-weight:600;">Top trending · Score: {top_score}</div>
             <div class="ins-text">"{top_title}"<br>
-            Reliable baseline audience — good for long-term commitment deals.<br>
+            Reliable baseline audience.<br>
             Source: Gold Layer · Trending score</div>
         </div>""", unsafe_allow_html=True)
 
-        # ── Summary insight bar ───────────────────────────────
         st.markdown(f"""
         <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;
                     padding:14px 20px;margin-top:8px;display:flex;gap:32px;flex-wrap:wrap;">
@@ -1142,50 +928,9 @@ if st.session_state.page == "live":
             <div><span style="color:#adbac7;font-size:12px;text-transform:uppercase;letter-spacing:0.8px;">Views↔Likes Corr</span>
                  <div style="color:#fbbf24;font-weight:700;font-size:15px;">{corr_val}</div></div>
             <div><span style="color:#adbac7;font-size:12px;text-transform:uppercase;letter-spacing:0.8px;">Data Source</span>
-                 <div style="color:#8b949e;font-weight:700;font-size:15px;">Gold Layer · Live</div></div>
+                 <div style="color:#8b949e;font-weight:700;font-size:15px;">Gold Layer · MongoDB</div></div>
         </div>
         """, unsafe_allow_html=True)
-
-            # Gold category chart
-        # if len(gold_cat) > 0:
-        #         st.markdown("#### 📊 Gold Layer — Category Aggregation")
-        #         lt   = gold_cat["fetch_time"].max()
-        #         gcat = gold_cat[gold_cat["fetch_time"]==lt].sort_values("avg_trending_score",ascending=False)
-        #         fig_gold = go.Figure()
-        #         fig_gold.add_trace(go.Bar(
-        #             x=gcat["category"],y=gcat["avg_views"],
-        #             name="Avg Views",marker_color="#38bdf8",yaxis="y"))
-        #         fig_gold.add_trace(go.Scatter(
-        #             x=gcat["category"],y=gcat["avg_engagement_rate"],
-        #             name="Avg Engagement",yaxis="y2",
-        #             line=dict(color="#f472b6",width=3),mode="lines+markers"))
-        #         fig_gold.update_layout(
-        #             plot_bgcolor="#161b22",paper_bgcolor="#161b22",
-        #             font=dict(color="#c9d1d9", size=11),height=320,
-        #             margin=dict(l=8,r=8,t=24,b=8),
-        #             xaxis=dict(gridcolor="#21262d",tickangle=-20),
-        #             yaxis=dict(title="Avg Views", gridcolor="#21262d", linecolor="#444d56", tickfont=dict(size=11, color="#adbac7"), title_font=dict(color="#c9d1d9")),
-        #             yaxis2=dict(title="Avg Engagement Rate", overlaying="y", side="right", tickfont=dict(size=11, color="#adbac7"), title_font=dict(color="#c9d1d9")),
-        #             showlegend=True,
-        #             legend=dict(bgcolor="#161b22", font=dict(color="#c9d1d9", size=10),
-        #                     orientation="h",yanchor="bottom",y=1.02))
-        #         st.plotly_chart(fig_gold, use_container_width=True)
-                # st.caption("Gold layer: groupBy(category).agg(avg_views, avg_engagement_rate, count)")
-
-            # Gold trending table
-        # if len(gold_tr) > 0:
-        #         st.markdown("#### 🏆 Gold Layer — Top 10 Trending Videos")
-        #         lt = gold_tr["fetch_time"].max()
-        #         t10 = gold_tr[gold_tr["fetch_time"]==lt].nlargest(10,"trending_score")[
-        #             ["title","category","country","views","engagement_rate","trending_score"]].copy()
-        #         t10["title"]          = t10["title"].str[:35]+"..."
-        #         t10["views"]          = t10["views"].apply(lambda x: f"{int(x):,}")
-        #         t10["trending_score"] = t10["trending_score"].round(3)
-        #         t10.columns = ["Title","Category","Country","Views","Engagement","Score"]
-        #         st.dataframe(t10, use_container_width=True, hide_index=True)
-        #         st.caption("Gold layer: orderBy(trending_score desc).limit(10)")
-
-        # st.markdown('</div>', unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════
 # HISTORICAL PAGE
@@ -1196,10 +941,9 @@ else:
      keywords, trending, prescr, scatter, liker) = load_hist()
     kpi = kpis.iloc[0]
 
-    # ── Top filter row ────────────────────────────────────────
     f1,f2,f3 = st.columns(3)
-    all_cats_h     = sorted(cat_perf["category"].unique())
-    all_countries_h= sorted(country_h["publish_country"].unique())
+    all_cats_h      = sorted(cat_perf["category"].unique())
+    all_countries_h = sorted(country_h["publish_country"].unique())
 
     with f1:
         sel_cats_h = st.selectbox("🎬 Category", ["All"] + list(all_cats_h), key="hc")
@@ -1213,41 +957,22 @@ else:
     scatter_f = scatter.copy()
     if sel_cats_h != "All": scatter_f = scatter_f[scatter_f["category"]==sel_cats_h]
     if sel_sent_h != "All": scatter_f = scatter_f[scatter_f["sentiment"]==sel_sent_h]
-    eng_f     = eng_hmap if sel_cats_h=="All" else eng_hmap[eng_hmap["category"]==sel_cats_h]
-    sent_cat_f= sent_cat if sel_cats_h=="All" else sent_cat[sent_cat["category"]==sel_cats_h]
-    day_f     = day_perf
-    liker_f   = liker if sel_cats_h=="All" else liker[liker["category"]==sel_cats_h]
+    eng_f      = eng_hmap if sel_cats_h=="All" else eng_hmap[eng_hmap["category"]==sel_cats_h]
+    sent_cat_f = sent_cat if sel_cats_h=="All" else sent_cat[sent_cat["category"]==sel_cats_h]
+    day_f      = day_perf
+    liker_f    = liker if sel_cats_h=="All" else liker[liker["category"]==sel_cats_h]
 
     pos_pct_h = round(sent_dist[sent_dist["sentiment"]=="positive"]["count"].sum() /
                       sent_dist["count"].sum() * 100, 1)
 
-    # ── KPI Row ───────────────────────────────────────────────
     st.markdown(f"""
     <div class="kpi-row">
-      <div class="kpi-card">
-        <div class="kpi-value">{int(kpi['total_videos']):,}</div>
-        <div class="kpi-label">Total Videos</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value">{int(kpi['avg_views']):,}</div>
-        <div class="kpi-label">Avg Views</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value">{int(kpi['avg_likes']):,}</div>
-        <div class="kpi-label">Avg Likes</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value kpi-positive">{pos_pct_h}%</div>
-        <div class="kpi-label">Positive Sentiment</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value">{int(kpi['total_channels']):,}</div>
-        <div class="kpi-label">Total Channels</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value">{int(kpi['total_countries']):,}</div>
-        <div class="kpi-label">Countries</div>
-      </div>
+      <div class="kpi-card"><div class="kpi-value">{int(kpi['total_videos']):,}</div><div class="kpi-label">Total Videos</div></div>
+      <div class="kpi-card"><div class="kpi-value">{int(kpi['avg_views']):,}</div><div class="kpi-label">Avg Views</div></div>
+      <div class="kpi-card"><div class="kpi-value">{int(kpi['avg_likes']):,}</div><div class="kpi-label">Avg Likes</div></div>
+      <div class="kpi-card"><div class="kpi-value kpi-positive">{pos_pct_h}%</div><div class="kpi-label">Positive Sentiment</div></div>
+      <div class="kpi-card"><div class="kpi-value">{int(kpi['total_channels']):,}</div><div class="kpi-label">Total Channels</div></div>
+      <div class="kpi-card"><div class="kpi-value">{int(kpi['total_countries']):,}</div><div class="kpi-label">Countries</div></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1300,8 +1025,10 @@ else:
                 font=dict(color="#c9d1d9", size=11),height=260,
                 margin=dict(l=8,r=8,t=24,b=8),
                 xaxis=dict(gridcolor="#21262d",tickfont=dict(size=10, color="#adbac7")),
-                yaxis=dict(title="Avg Views", gridcolor="#21262d", linecolor="#444d56", tickfont=dict(size=11, color="#adbac7"), title_font=dict(color="#c9d1d9")),
-                yaxis2=dict(title="Engagement", overlaying="y", side="right", tickfont=dict(size=11, color="#adbac7"), title_font=dict(color="#c9d1d9")),
+                yaxis=dict(title="Avg Views", gridcolor="#21262d", linecolor="#444d56",
+                           tickfont=dict(size=11, color="#adbac7"), title_font=dict(color="#c9d1d9")),
+                yaxis2=dict(title="Engagement", overlaying="y", side="right",
+                            tickfont=dict(size=11, color="#adbac7"), title_font=dict(color="#c9d1d9")),
                 legend=dict(bgcolor="#161b22", font=dict(color="#c9d1d9", size=10),
                            orientation="h",yanchor="bottom",y=1.02))
             st.plotly_chart(fig_day, use_container_width=True)
@@ -1347,8 +1074,7 @@ else:
                 ep = eng_f.pivot(index="category",columns="day",values="engagement_rate").fillna(0)
                 dc = [d for d in DAY_ORDER if d in ep.columns]
                 ep = ep[dc]
-                fig_eh = px.imshow(ep, color_continuous_scale="Blues",
-                    text_auto=".3f", aspect="auto")
+                fig_eh = px.imshow(ep, color_continuous_scale="Blues", text_auto=".3f", aspect="auto")
                 fig_eh.update_layout(**dark(320))
                 fig_eh.update_traces(textfont_size=11)
                 st.plotly_chart(fig_eh, use_container_width=True)
@@ -1387,8 +1113,10 @@ else:
                 plot_bgcolor="#161b22", paper_bgcolor="#161b22",
                 font=dict(color="#c9d1d9", size=12), height=260,
                 margin=dict(l=8,r=8,t=24,b=8), showlegend=False,
-                xaxis=dict(tickangle=-30, gridcolor="#21262d", linecolor="#444d56", tickfont=dict(size=11, color="#adbac7")),
-                yaxis=dict(gridcolor="#21262d", linecolor="#444d56", tickfont=dict(size=11, color="#adbac7")))
+                xaxis=dict(tickangle=-30, gridcolor="#21262d", linecolor="#444d56",
+                           tickfont=dict(size=11, color="#adbac7")),
+                yaxis=dict(gridcolor="#21262d", linecolor="#444d56",
+                           tickfont=dict(size=11, color="#adbac7")))
             st.plotly_chart(fig_lr, use_container_width=True)
             st.markdown('<div class="chart-caption">Audience approval score by category</div></div>', unsafe_allow_html=True)
 
@@ -1398,61 +1126,49 @@ else:
         r5c1, r5c2 = st.columns(2)
 
         with r5c1:
-            # Simulated growth forecast from engagement normalisation
             st.markdown('<div class="chart-wrap"><div class="chart-title">📈 24h Simulated Forecast — Category Growth %</div>', unsafe_allow_html=True)
             cat_f2 = cat_perf.copy()
             eng_mean = cat_f2["avg_engagement"].mean()
             eng_std  = cat_f2["avg_engagement"].std() + 1e-6
             cat_f2["simulated_growth_pct"] = (
-                (cat_f2["avg_engagement"] - eng_mean) / eng_std * 10
-            ).round(1)
+                (cat_f2["avg_engagement"] - eng_mean) / eng_std * 10).round(1)
             cat_f2 = cat_f2.sort_values("simulated_growth_pct")
-            bar_colors_h = ["#3fb950" if g >= 0 else "#f85149"
-                            for g in cat_f2["simulated_growth_pct"]]
+            bar_colors_h = ["#3fb950" if g >= 0 else "#f85149" for g in cat_f2["simulated_growth_pct"]]
             fig_hfc = go.Figure(go.Bar(
                 x=cat_f2["simulated_growth_pct"], y=cat_f2["category"],
                 orientation="h", marker_color=bar_colors_h,
                 text=[f"{g:+.1f}%" for g in cat_f2["simulated_growth_pct"]],
-                textposition="outside", textfont=dict(size=11, color="#e6edf3"),
-            ))
+                textposition="outside", textfont=dict(size=11, color="#e6edf3")))
             fig_hfc.add_vline(x=0, line_color="#30363d", line_width=1)
             fig_hfc.update_layout(
                 plot_bgcolor="#161b22", paper_bgcolor="#161b22",
                 font=dict(color="#c9d1d9", size=11), height=340,
-                margin=dict(l=8, r=70, t=24, b=8), showlegend=False,
-                xaxis=dict(title="Simulated Growth %", gridcolor="#21262d", title_font=dict(color="#c9d1d9"),
-                           linecolor="#444d56", zeroline=False),
-                yaxis=dict(gridcolor="#21262d", linecolor="#444d56"),
-            )
+                margin=dict(l=8,r=70,t=24,b=8), showlegend=False,
+                xaxis=dict(title="Simulated Growth %", gridcolor="#21262d",
+                           title_font=dict(color="#c9d1d9"), linecolor="#444d56", zeroline=False),
+                yaxis=dict(gridcolor="#21262d", linecolor="#444d56"))
             st.plotly_chart(fig_hfc, use_container_width=True)
             st.markdown('<div class="chart-caption">Engagement-normalised forecast — categories above mean engagement score trend positive</div></div>', unsafe_allow_html=True)
 
         with r5c2:
-            # Peak hour bar with best hour annotation
             st.markdown('<div class="chart-wrap"><div class="chart-title">⏰ Best Publish Hour — Peak Window Forecast</div>', unsafe_allow_html=True)
             fig_hr2 = go.Figure()
             fig_hr2.add_trace(go.Bar(
                 x=hour_perf["publish_hour"], y=hour_perf["avg_views"],
-                marker=dict(color=hour_perf["avg_views"],
-                            colorscale="Blues", showscale=False),
-            ))
+                marker=dict(color=hour_perf["avg_views"], colorscale="Blues", showscale=False)))
             best_h = int(hour_perf.loc[hour_perf["avg_views"].idxmax(), "publish_hour"])
-            fig_hr2.add_vline(
-                x=best_h, line_color="#3fb950", line_width=2,
+            fig_hr2.add_vline(x=best_h, line_color="#3fb950", line_width=2,
                 annotation_text=f"Peak: {best_h}:00",
-                annotation_font_color="#3fb950",
-                annotation_position="top right",
-            )
+                annotation_font_color="#3fb950", annotation_position="top right")
             fig_hr2.update_layout(
                 plot_bgcolor="#161b22", paper_bgcolor="#161b22",
                 font=dict(color="#c9d1d9", size=11), height=340,
-                margin=dict(l=8, r=8, t=24, b=8), showlegend=False,
-                xaxis=dict(title="Hour (24h)", gridcolor="#21262d", title_font=dict(color="#c9d1d9"),
-                           linecolor="#444d56", dtick=2),
-                yaxis=dict(title="Avg Views", gridcolor="#21262d", linecolor="#444d56"),
-            )
+                margin=dict(l=8,r=8,t=24,b=8), showlegend=False,
+                xaxis=dict(title="Hour (24h)", gridcolor="#21262d",
+                           title_font=dict(color="#c9d1d9"), linecolor="#444d56", dtick=2),
+                yaxis=dict(title="Avg Views", gridcolor="#21262d", linecolor="#444d56"))
             st.plotly_chart(fig_hr2, use_container_width=True)
-            st.markdown(f'<div class="chart-caption">Best publish hour: <b>{best_h}:00–{best_h+1}:00</b> UTC — historically highest avg views · Green = peak window</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="chart-caption">Best publish hour: <b>{best_h}:00–{best_h+1}:00</b> UTC · Green = peak window</div></div>', unsafe_allow_html=True)
 
         r5c3, r5c4 = st.columns(2)
 
@@ -1487,11 +1203,11 @@ else:
         row = prescr.iloc[0]
         p1,p2,p3,p4,p5 = st.columns(5)
         items = [
-            (p1, "📁 Best Category",    row["rec_category"].split("'")[1] if "'" in row["rec_category"] else row["rec_category"][:20],    row["rec_category"]),
-            (p2, "📅 Best Day",         row["rec_day"].split()[2],         row["rec_day"]),
-            (p3, "⏰ Best Hour",        row["rec_hour"].split()[2],         row["rec_hour"]),
-            (p4, "📝 Title Length",     row["rec_title_length"].split()[1], row["rec_title_length"]),
-            (p5, "🏷️ Tags",            row["rec_tags"].split()[1],         row["rec_tags"]),
+            (p1, "📁 Best Category",    row["rec_category"].split("'")[1] if "'" in row["rec_category"] else row["rec_category"][:20], row["rec_category"]),
+            (p2, "📅 Best Day",         row["rec_day"].split()[2],          row["rec_day"]),
+            (p3, "⏰ Best Hour",        row["rec_hour"].split()[2],          row["rec_hour"]),
+            (p4, "📝 Title Length",     row["rec_title_length"].split()[1],  row["rec_title_length"]),
+            (p5, "🏷️ Tags",            row["rec_tags"].split()[1],          row["rec_tags"]),
         ]
         for col, title, val, desc in items:
             col.markdown(f"""
@@ -1509,9 +1225,3 @@ else:
             labels={"total_views":"Total Views","channel_title":"","avg_engagement":"Avg Engagement"})
         fig_ch.update_layout(**dark(400))
         st.plotly_chart(fig_ch, use_container_width=True)
-
-# # ── Footer ────────────────────────────────────────────────────
-# st.markdown("""
-# <div style='text-align:center;color:#21262d;font-size:10px;padding:16px;'>
-# InsightFlow · AI528 Big Data Analytics · IIT Ropar · Kafka → PySpark → Delta Lake → Streamlit Cloud
-# </div>""", unsafe_allow_html=True)

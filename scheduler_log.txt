@@ -1,0 +1,9 @@
+[2026-04-23 02:09:36] === Scheduled fetch started ===
+[2026-04-23 02:09:41] Supabase insert error: 401 — {"code":"42501","details":null,"hint":null,"message":"new row violates row-level security policy for table \"youtube_live\""}
+[2026-04-23 02:09:41] Insert failed — check Supabase logs
+[2026-04-23 02:09:41] === Fetch complete ===
+
+[2026-04-23 02:11:21] === Scheduled fetch started ===
+[2026-04-23 02:11:25] YouTube: 110 videos inserted. Total in DB: 110
+[2026-04-23 02:11:25] === Fetch complete ===
+

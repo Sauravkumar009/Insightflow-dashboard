@@ -1,26 +1,18 @@
 import os
 import schedule
 import time
-import httpx
+from pymongo import MongoClient
 from googleapiclient.discovery import build
 from datetime import datetime, timezone
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 # ── Config from environment variables ────────────────────────
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "")
-SUPABASE_URL    = os.environ.get("SUPABASE_URL", "https://oymwlmbqzvmpwihhhirx.supabase.co")
-SUPABASE_KEY    = os.environ.get("SUPABASE_KEY", "sb_publishable_SPQGizmtB8uBcBq6A0kfWw_HOvtQWuQ")
+MONGODB_URI     = os.environ.get("MONGODB_URI", "mongodb+srv://2025aim1009_db_user:lOuGs2tZMyhwVHK6@cluster0.ov7v1g2.mongodb.net/insightflow?retryWrites=true&w=majority&appName=Cluster0")
 FETCH_INTERVAL  = int(os.environ.get("FETCH_INTERVAL", "30"))
 # ─────────────────────────────────────────────────────────────
 
 analyzer = SentimentIntensityAnalyzer()
-
-HEADERS = {
-    "apikey"       : SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type" : "application/json",
-    "Prefer"       : "return=minimal"
-}
 
 CATEGORIES = {
     "1" : "Film & Animation",
@@ -47,23 +39,29 @@ def log(msg):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] {msg}", flush=True)
 
-def insert_to_supabase(rows):
-    url = f"{SUPABASE_URL}/rest/v1/youtube_live"
-    with httpx.Client(timeout=30) as client:
-        response = client.post(url, headers=HEADERS, json=rows)
-        if response.status_code in [200, 201]:
-            return True
-        else:
-            log(f"Supabase insert error: {response.status_code} — {response.text}")
-            return False
+def get_mongo_db():
+    """Return MongoDB database object."""
+    client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=10000)
+    return client["insightflow"]
+
+def insert_to_mongo(rows):
+    """Insert rows into youtube_live collection."""
+    try:
+        db = get_mongo_db()
+        db["youtube_live"].insert_many(rows, ordered=False)
+        return True
+    except Exception as e:
+        log(f"MongoDB insert error: {e}")
+        return False
 
 def get_total_count():
-    url = f"{SUPABASE_URL}/rest/v1/youtube_live?select=id"
-    headers = {**HEADERS, "Prefer": "count=exact", "Range": "0-0"}
-    with httpx.Client(timeout=30) as client:
-        response = client.get(url, headers=headers)
-        content_range = response.headers.get("content-range", "*/0")
-        return content_range.split("/")[-1]
+    """Count total documents in youtube_live collection."""
+    try:
+        db = get_mongo_db()
+        return db["youtube_live"].count_documents({})
+    except Exception as e:
+        log(f"MongoDB count error: {e}")
+        return "unknown"
 
 def fetch_and_store():
     log("=== Fetch started ===")
@@ -103,7 +101,7 @@ def fetch_and_store():
                 log(f"Category {cat_name} error: {e}")
 
         if new_rows:
-            success = insert_to_supabase(new_rows)
+            success = insert_to_mongo(new_rows)
             if success:
                 total = get_total_count()
                 log(f"Inserted {len(new_rows)} videos. Total in DB: {total}")
@@ -118,7 +116,7 @@ def fetch_and_store():
 # ── Main ──────────────────────────────────────────────────────
 log("InsightFlow Scheduler starting on Render...")
 log(f"Fetch interval: {FETCH_INTERVAL} minutes")
-log(f"Supabase URL: {SUPABASE_URL}")
+log(f"MongoDB URI: {MONGODB_URI[:40]}...")
 
 fetch_and_store()
 schedule.every(FETCH_INTERVAL).minutes.do(fetch_and_store)

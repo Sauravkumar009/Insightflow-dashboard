@@ -1,6 +1,6 @@
 import os
-import httpx
 import time
+from pymongo import MongoClient
 from googleapiclient.discovery import build
 from datetime import datetime, timezone
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -8,18 +8,10 @@ from collections import defaultdict
 
 # ── Config from environment variables ────────────────────────
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "AIzaSyC214FxsGB1myUJFPgrnV3HnNWH46NDsWM")
-SUPABASE_URL    = os.environ.get("SUPABASE_URL", "https://oymwlmbqzvmpwihhhirx.supabase.co")
-SUPABASE_KEY    = os.environ.get("SUPABASE_KEY", "sb_publishable_SPQGizmtB8uBcBq6A0kfWw_HOvtQWuQ")
+MONGODB_URI     = os.environ.get("MONGODB_URI", "mongodb+srv://2025aim1009_db_user:lOuGs2tZMyhwVHK6@cluster0.ov7v1g2.mongodb.net/insightflow?retryWrites=true&w=majority&appName=Cluster0")
 # ─────────────────────────────────────────────────────────────
 
 analyzer = SentimentIntensityAnalyzer()
-
-HEADERS = {
-    "apikey"       : SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type" : "application/json",
-    "Prefer"       : "return=minimal"
-}
 
 COUNTRIES = {
     "US": "United States",
@@ -56,24 +48,33 @@ def get_sentiment(text):
 def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
-def insert_to_supabase(table, rows):
-    if not rows: return True
-    url = f"{SUPABASE_URL}/rest/v1/{table}"
-    with httpx.Client(timeout=30) as client:
-        response = client.post(url, headers=HEADERS, json=rows)
-        if response.status_code in [200, 201]:
-            return True
-        else:
-            log(f"Insert error [{table}]: {response.status_code} — {response.text}")
-            return False
+# ── MongoDB connection ────────────────────────────────────────
+def get_db():
+    client = MongoClient(MONGODB_URI)
+    return client["insightflow"]
 
-def get_total_count(table="youtube_live"):
-    url     = f"{SUPABASE_URL}/rest/v1/{table}?select=id"
-    headers = {**HEADERS, "Prefer": "count=exact", "Range": "0-0"}
-    with httpx.Client(timeout=30) as client:
-        response      = client.get(url, headers=headers)
-        content_range = response.headers.get("content-range", "*/0")
-        return content_range.split("/")[-1]
+def insert_to_mongo(collection_name, rows):
+    """Insert rows into MongoDB collection — replaces insert_to_supabase()"""
+    if not rows:
+        return True
+    try:
+        db  = get_db()
+        col = db[collection_name]
+        col.insert_many(rows)
+        return True
+    except Exception as e:
+        log(f"MongoDB insert error [{collection_name}]: {e}")
+        return False
+
+def get_total_count(collection_name="youtube_live"):
+    """Count documents in collection — replaces Supabase content-range header trick"""
+    try:
+        db  = get_db()
+        col = db[collection_name]
+        return col.count_documents({})
+    except Exception as e:
+        log(f"MongoDB count error: {e}")
+        return 0
 
 # ══════════════════════════════════════════
 # STAGE 1: Kafka Simulation
@@ -109,7 +110,7 @@ def spark_silver_transform(batch, batch_num):
       .withColumn("trending_score", UDF(...))
       .withColumn("layer", lit("silver"))
     """
-    processed   = []
+    processed     = []
     nulls_dropped = 0
 
     for row in batch:
@@ -132,10 +133,10 @@ def spark_silver_transform(batch, batch_num):
         like_ratio      = round(likes / (likes + 1), 4)
         comment_rate    = round(comments / (views + 1), 6)
         trending_score  = round(
-            min(views / 50_000_000, 1.0)        * 0.4 +
-            min(engagement_rate * 100, 1.0)     * 0.3 +
-            like_ratio                           * 0.2 +
-            min(comment_rate * 1000, 1.0)        * 0.1, 4)
+            min(views / 50_000_000, 1.0)    * 0.4 +
+            min(engagement_rate * 100, 1.0) * 0.3 +
+            like_ratio                       * 0.2 +
+            min(comment_rate * 1000, 1.0)   * 0.1, 4)
 
         processed.append({
             **row,
@@ -160,9 +161,7 @@ def spark_gold_aggregate(silver_records, now):
     """
     PySpark Gold Layer — aggregations for serving layer.
     Equivalent PySpark operations:
-      silver_df.groupBy("category").agg(
-          avg("views"), avg("likes"), avg("engagement_rate"),
-          avg("trending_score"), count("video_id"))
+      silver_df.groupBy("category").agg(avg_views, avg_engagement, count)
       silver_df.groupBy("country").agg(...)
       silver_df.groupBy("sentiment").agg(...)
       silver_df.orderBy("trending_score").limit(20)
@@ -177,14 +176,14 @@ def spark_gold_aggregate(silver_records, now):
     gold_category = []
     for cat, records in cat_groups.items():
         gold_category.append({
-            "category"          : cat,
-            "avg_views"         : round(sum(r["views"] for r in records) / len(records), 2),
-            "avg_likes"         : round(sum(r["likes"] for r in records) / len(records), 2),
-            "avg_comments"      : round(sum(r["comments"] for r in records) / len(records), 2),
+            "category"           : cat,
+            "avg_views"          : round(sum(r["views"] for r in records) / len(records), 2),
+            "avg_likes"          : round(sum(r["likes"] for r in records) / len(records), 2),
+            "avg_comments"       : round(sum(r["comments"] for r in records) / len(records), 2),
             "avg_engagement_rate": round(sum(r["engagement_rate"] for r in records) / len(records), 4),
-            "avg_trending_score": round(sum(r["trending_score"] for r in records) / len(records), 4),
-            "total_videos"      : len(records),
-            "fetch_time"        : now,
+            "avg_trending_score" : round(sum(r["trending_score"] for r in records) / len(records), 4),
+            "total_videos"       : len(records),
+            "fetch_time"         : now,
         })
     log(f"  [SPARK GOLD] category: {len(gold_category)} groups")
 
@@ -196,13 +195,13 @@ def spark_gold_aggregate(silver_records, now):
     gold_country = []
     for country, records in country_groups.items():
         gold_country.append({
-            "country"           : country,
-            "avg_views"         : round(sum(r["views"] for r in records) / len(records), 2),
-            "avg_likes"         : round(sum(r["likes"] for r in records) / len(records), 2),
+            "country"            : country,
+            "avg_views"          : round(sum(r["views"] for r in records) / len(records), 2),
+            "avg_likes"          : round(sum(r["likes"] for r in records) / len(records), 2),
             "avg_engagement_rate": round(sum(r["engagement_rate"] for r in records) / len(records), 4),
-            "avg_trending_score": round(sum(r["trending_score"] for r in records) / len(records), 4),
-            "total_videos"      : len(records),
-            "fetch_time"        : now,
+            "avg_trending_score" : round(sum(r["trending_score"] for r in records) / len(records), 4),
+            "total_videos"       : len(records),
+            "fetch_time"         : now,
         })
     log(f"  [SPARK GOLD] country: {len(gold_country)} groups")
 
@@ -214,30 +213,28 @@ def spark_gold_aggregate(silver_records, now):
     gold_sentiment = []
     for sent, records in sent_groups.items():
         gold_sentiment.append({
-            "sentiment"         : sent,
-            "avg_views"         : round(sum(r["views"] for r in records) / len(records), 2),
+            "sentiment"          : sent,
+            "avg_views"          : round(sum(r["views"] for r in records) / len(records), 2),
             "avg_engagement_rate": round(sum(r["engagement_rate"] for r in records) / len(records), 4),
-            "total_videos"      : len(records),
-            "fetch_time"        : now,
+            "total_videos"       : len(records),
+            "fetch_time"         : now,
         })
     log(f"  [SPARK GOLD] sentiment: {len(gold_sentiment)} groups")
 
     # orderBy("trending_score").limit(20)
-    gold_trending = sorted(silver_records,
-                           key=lambda x: x["trending_score"],
-                           reverse=True)[:20]
+    gold_trending      = sorted(silver_records, key=lambda x: x["trending_score"], reverse=True)[:20]
     gold_trending_rows = [{
-        "video_id"      : r["video_id"],
-        "title"         : r["title"],
-        "channel"       : r["channel"],
-        "category"      : r["category"],
-        "country"       : r["country"],
-        "views"         : r["views"],
-        "likes"         : r["likes"],
+        "video_id"       : r["video_id"],
+        "title"          : r["title"],
+        "channel"        : r["channel"],
+        "category"       : r["category"],
+        "country"        : r["country"],
+        "views"          : r["views"],
+        "likes"          : r["likes"],
         "engagement_rate": r["engagement_rate"],
-        "trending_score": r["trending_score"],
-        "sentiment"     : r["sentiment"],
-        "fetch_time"    : now,
+        "trending_score" : r["trending_score"],
+        "sentiment"      : r["sentiment"],
+        "fetch_time"     : now,
     } for r in gold_trending]
     log(f"  [SPARK GOLD] top trending: {len(gold_trending_rows)} videos")
 
@@ -249,7 +246,7 @@ def spark_gold_aggregate(silver_records, now):
 def main():
     log("=" * 60)
     log("  InsightFlow — Complete Big Data Pipeline")
-    log("  YouTube API → Kafka → PySpark Bronze → Silver → Gold")
+    log("  YouTube API → Kafka → PySpark Bronze → Silver → Gold → MongoDB")
     log("=" * 60)
     log(f"Time: {datetime.now(timezone.utc).isoformat()}")
     log(f"Countries: {len(COUNTRIES)} | Categories: {len(CATEGORIES)}")
@@ -351,29 +348,25 @@ def main():
     log(f"  sentiment table: {len(gold_sent)} rows")
     log(f"  trending table : {len(gold_trending)} rows\n")
 
-    # ── STAGE 4: Store in Supabase ────────────────────────────
-    log("[STAGE 4] Storing all layers in Supabase...")
+    # ── STAGE 4: Store in MongoDB ─────────────────────────────
+    log("[STAGE 4] Storing all layers in MongoDB...")
 
-    # Silver layer → youtube_live table
-    silver_inserted = 0
-    for i in range(0, len(all_silver), 100):
-        batch = all_silver[i:i+100]
-        if insert_to_supabase("youtube_live", batch):
-            silver_inserted += len(batch)
-    log(f"  Silver → youtube_live: {silver_inserted} records")
+    # Silver layer → youtube_live collection
+    if insert_to_mongo("youtube_live", all_silver):
+        log(f"  Silver → youtube_live: {len(all_silver)} records")
 
-    # Gold layer → gold tables
-    if insert_to_supabase("gold_category",  gold_cat):
+    # Gold layer → gold collections
+    if insert_to_mongo("gold_category",  gold_cat):
         log(f"  Gold → gold_category: {len(gold_cat)} rows")
-    if insert_to_supabase("gold_country",   gold_country):
+    if insert_to_mongo("gold_country",   gold_country):
         log(f"  Gold → gold_country: {len(gold_country)} rows")
-    if insert_to_supabase("gold_sentiment", gold_sent):
+    if insert_to_mongo("gold_sentiment", gold_sent):
         log(f"  Gold → gold_sentiment: {len(gold_sent)} rows")
-    if insert_to_supabase("gold_trending",  gold_trending):
+    if insert_to_mongo("gold_trending",  gold_trending):
         log(f"  Gold → gold_trending: {len(gold_trending)} rows")
 
     total = get_total_count("youtube_live")
-    log(f"\n  Total Silver records in Supabase: {total}")
+    log(f"\n  Total Silver records in MongoDB: {total}")
 
     log("\n" + "=" * 60)
     log("  Pipeline Complete!")
@@ -381,6 +374,7 @@ def main():
         f" → Silver({len(all_silver)}) → Gold(cat:{len(gold_cat)},"
         f"country:{len(gold_country)},sent:{len(gold_sent)},"
         f"trending:{len(gold_trending)})")
+    log("  Storage: MongoDB Atlas — insightflow database")
     log("=" * 60)
 
 if __name__ == "__main__":

@@ -6,10 +6,8 @@ services:
     startCommand: python render_scheduler.py
     envVars:
       - key: YOUTUBE_API_KEY
-        sync: false
-      - key: SUPABASE_URL
-        value: https://oymwlmbqzvmpwihhhirx.supabase.co
-      - key: SUPABASE_KEY
-        value: sb_publishable_SPQGizmtB8uBcBq6A0kfWw_HOvtQWuQ
+        sync: false          # set manually in Render dashboard
+      - key: MONGODB_URI
+        sync: false          # set manually in Render dashboard
       - key: FETCH_INTERVAL
         value: 30

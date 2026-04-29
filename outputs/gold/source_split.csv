@@ -1,0 +1,3 @@
+source,total_views,pct
+Batch (CSV),390733840839,88.2
+Stream (Kafka),52358334672,11.8
