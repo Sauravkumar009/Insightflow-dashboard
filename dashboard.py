@@ -232,6 +232,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+if st.button("🔄 Refresh Data"):
+    st.cache_data.clear()
+    st.rerun()
+
 # ── Dark plotly base ──────────────────────────────────────────
 def dark(height=350, **kwargs):
     base = dict(

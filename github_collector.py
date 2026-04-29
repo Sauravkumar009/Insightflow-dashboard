@@ -256,7 +256,7 @@ def main():
         log("ERROR: YOUTUBE_API_KEY not set!")
         return
 
-    now     = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:00+00:00")
     youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
     # ── STAGE 0: Data Collection ──────────────────────────────
