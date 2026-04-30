@@ -457,13 +457,7 @@ NGRAM_MAP = {
 
 # ── NAVBAR ────────────────────────────────────────────────────
 st.markdown("""
-<div class="navbar">
-  <div>
-    <div class="nav-title">&#128202; InsightFlow</div>
-    <div class="nav-subtitle">YouTube Trending Analytics · MongoDB NoSQL · TF-IDF Keyword Intelligence</div>
-  </div>
-  <div class="dark-badge">&#9790; Dark Mode</div>
-</div>
+
 """, unsafe_allow_html=True)
 
 col_nav1, col_nav2, col_nav3 = st.columns([6,1,1])
@@ -737,16 +731,7 @@ if st.session_state.page == "live":
 
         # ── TF-IDF Keyword Analysis ───────────────────────────
         st.markdown("""
-        <div class="chart-wrap">
-          <div class="chart-title">
-            🔠 TF-IDF Keyword Intelligence
-            <span class="tfidf-badge">TF-IDF</span>
-            <span class="tfidf-badge" style="background:#34d39922;border-color:#34d39955;color:#34d399;">Bigram</span>
-          </div>
-          <div style="font-size:11px;color:#8b949e;margin-bottom:12px;">
-            TF-IDF = Term Frequency × Inverse Document Frequency — identifies truly <b style="color:#58a6ff;">distinctive trending keywords</b>,
-            not just frequent ones. Bigrams (2-word phrases) reveal richer topic signals than single words alone.
-          </div>
+       
         """, unsafe_allow_html=True)
 
         # ngram toggle
